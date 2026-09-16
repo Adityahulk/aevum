@@ -20,8 +20,8 @@ public class EvidenceController {
     if (q.length() > 1000) throw new Api.Failure(422, "Evidence query is too long");
     var result = science.post("/evidence/search", Map.of("query", q));
     synchronize();
-    boolean pg = s.db.getDataSource() != null && isPostgres();
-    if (pg) {
+    boolean vectorSearch = s.db.getDataSource() != null && hasPgVector();
+    if (vectorSearch) {
       try {
         String vector = s.json.writeValueAsString(result.get("query_vector"));
         var rows =
@@ -46,9 +46,25 @@ public class EvidenceController {
     }
   }
 
+  boolean hasPgVector() {
+    if (!isPostgres()) return false;
+    try {
+      Boolean available =
+          s.db.queryForObject(
+              "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname='vector')"
+                  + " AND EXISTS(SELECT 1 FROM information_schema.columns"
+                  + " WHERE table_name='scientific_evidence' AND column_name='embedding')",
+              Boolean.class);
+      return Boolean.TRUE.equals(available);
+    } catch (Exception e) {
+      return false;
+    }
+  }
+
   @org.springframework.scheduling.annotation.Scheduled(initialDelay = 10000, fixedDelay = 86400000)
   public synchronized void synchronize() {
     try {
+      boolean vectorSearch = s.db.getDataSource() != null && hasPgVector();
       var catalog = science.catalog();
       var docs =
           Api.maps(
@@ -82,7 +98,7 @@ public class EvidenceController {
               s.encode(e),
               embedding,
               "hallmarks-2023-v1");
-        if (isPostgres())
+        if (vectorSearch)
           s.db.update(
               "UPDATE scientific_evidence SET embedding=CAST(? AS vector) WHERE id=?",
               embedding,

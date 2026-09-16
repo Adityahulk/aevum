@@ -133,6 +133,8 @@ docker compose up --build
 
 Open `http://127.0.0.1:8088`. The Compose profile provides PostgreSQL/TimescaleDB, pgvector, S3-compatible MinIO, Redis, Python analytics, Spring Boot, and an Nginx-served web build. Only the web service is exposed, on loopback. For a public deployment, add a TLS reverse proxy, set `AEVUM_ENV=production`, configure the public Oura redirect URI, and follow the deployment checklist in the architecture document. This is a deployment configuration, not a claim of a production launch or independently validated clinical system.
 
+For a managed MVP deployment, follow the [Railway deployment runbook](docs/RAILWAY_DEPLOYMENT.md). It uses a public web service, private API and analytics services, Railway PostgreSQL and Redis, and a private Railway Bucket. The containers read Railway's runtime port and private-network settings directly.
+
 ## Optional live integrations
 
 - **Oura:** set `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET`, and `OURA_REDIRECT_URI`. A missing configuration is clearly reported; the UI never fakes a successful connection. Provider access requires an eligible account and application approval as applicable.
@@ -149,4 +151,6 @@ The PDFs do not supply validated model coefficients, calibrated age/sex referenc
 
 - [Requirements traceability and implementation phases](docs/IMPLEMENTATION_PLAN.md)
 - [Architecture and operating notes](docs/ARCHITECTURE.md)
+- [Railway deployment runbook](docs/RAILWAY_DEPLOYMENT.md)
+- [External integration setup](docs/EXTERNAL_INTEGRATIONS.md)
 - [Verification results and release boundaries](docs/VERIFICATION.md)

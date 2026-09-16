@@ -5,4 +5,4 @@ RUN pip install --no-cache-dir -r requirements.txt && useradd --system --uid 100
 COPY *.py ./
 USER aevum
 EXPOSE 8090
-CMD ["uvicorn","main:app","--host","0.0.0.0","--port","8090","--no-access-log"]
+CMD ["sh","-c","exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8090} --no-access-log"]

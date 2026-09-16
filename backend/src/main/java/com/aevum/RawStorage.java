@@ -17,15 +17,32 @@ public class RawStorage {
 
   public RawStorage(Vault vault) {
     this.vault = vault;
-    bucket = System.getenv("S3_BUCKET");
-    s3 =
-        bucket == null
-            ? null
-            : S3Client.builder()
-                .endpointOverride(URI.create(System.getenv("S3_ENDPOINT")))
-                .region(Region.US_EAST_1)
-                .forcePathStyle(true)
-                .build();
+    bucket = env("S3_BUCKET", "AWS_S3_BUCKET_NAME");
+    if (bucket == null) {
+      s3 = null;
+    } else {
+      var builder =
+          S3Client.builder()
+              .region(Region.of(envOr("us-east-1", "S3_REGION", "AWS_DEFAULT_REGION")))
+              .forcePathStyle(
+                  Boolean.parseBoolean(envOr("false", "S3_PATH_STYLE", "AWS_S3_PATH_STYLE")));
+      String endpoint = env("S3_ENDPOINT", "AWS_ENDPOINT_URL");
+      if (endpoint != null) builder.endpointOverride(URI.create(endpoint));
+      s3 = builder.build();
+    }
+  }
+
+  private static String env(String... names) {
+    for (String name : names) {
+      String value = System.getenv(name);
+      if (value != null && !value.isBlank()) return value;
+    }
+    return null;
+  }
+
+  private static String envOr(String fallback, String... names) {
+    String value = env(names);
+    return value == null ? fallback : value;
   }
 
   public void put(String key, byte[] content) {
