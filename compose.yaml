@@ -1,0 +1,81 @@
+name: aevum
+services:
+  database:
+    image: timescale/timescaledb-ha:pg17
+    environment:
+      POSTGRES_DB: aevum
+      POSTGRES_USER: aevum
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in .env}
+    volumes:
+      - postgres:/home/postgres/pgdata/data
+      - ./infra/init.sql:/docker-entrypoint-initdb.d/001-aevum.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U aevum -d aevum]
+      interval: 5s
+      retries: 20
+  redis:
+    image: redis:7.4-alpine
+    command: [redis-server, --requirepass, "${REDIS_PASSWORD:?Set REDIS_PASSWORD}"]
+    healthcheck:
+      test: [CMD-SHELL, "redis-cli -a $$REDIS_PASSWORD ping | grep PONG"]
+      interval: 5s
+      retries: 10
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+  objects:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?Set S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?Set S3_SECRET_KEY}
+    volumes: [objects:/data]
+  bucket:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on: [objects]
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+    entrypoint: [/bin/sh, -c]
+    command: ['until mc alias set aevum http://objects:9000 "$$S3_ACCESS_KEY" "$$S3_SECRET_KEY"; do sleep 2; done; mc mb --ignore-existing aevum/aevum-raw']
+  analytics:
+    build: ./analytics
+    environment:
+      ANALYTICS_SECRET: ${ANALYTICS_SECRET:?Set ANALYTICS_SECRET}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+    depends_on:
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8090/health')"]
+      interval: 5s
+      retries: 15
+  api:
+    build: ./backend
+    environment:
+      BIND_ADDRESS: 0.0.0.0
+      AEVUM_ENV: ${AEVUM_ENV:-local}
+      DATABASE_URL: jdbc:postgresql://database:5432/aevum
+      DATABASE_USER: aevum
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?Set a 32-byte base64 encryption key}
+      ANALYTICS_URL: http://analytics:8090
+      ANALYTICS_SECRET: ${ANALYTICS_SECRET}
+      S3_ENDPOINT: http://objects:9000
+      S3_BUCKET: aevum-raw
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      OURA_CLIENT_ID: ${OURA_CLIENT_ID:-}
+      OURA_CLIENT_SECRET: ${OURA_CLIENT_SECRET:-}
+      OURA_REDIRECT_URI: ${OURA_REDIRECT_URI:-http://127.0.0.1:8088/api/wearables/oura/callback}
+    depends_on:
+      database: {condition: service_healthy}
+      analytics: {condition: service_healthy}
+      bucket: {condition: service_completed_successfully}
+  web:
+    build: ./web
+    ports: ["127.0.0.1:8088:8080"]
+    depends_on: [api]
+volumes:
+  postgres:
+  objects:

@@ -1,0 +1,35 @@
+import {
+  Activity,
+  Dna,
+  Heart,
+  Layers,
+  Leaf,
+  ShieldCheck,
+  Sparkles,
+  Zap,
+  Moon,
+  Dumbbell,
+} from "lucide-react";
+export const domainIcons: Record<string, any> = {
+  metabolic: Leaf,
+  cardiovascular: Heart,
+  inflammatory: Activity,
+  recovery: Moon,
+  musculoskeletal: Dumbbell,
+  functional: Zap,
+  body: Layers,
+  epigenetic: Dna,
+  cognitive: Sparkles,
+  immune: ShieldCheck,
+};
+export const goals = [
+  "Longevity",
+  "General health",
+  "Metabolic health",
+  "Cardiovascular health",
+  "Performance",
+  "Body composition",
+  "Recovery",
+  "Cognitive health",
+  "Custom",
+];

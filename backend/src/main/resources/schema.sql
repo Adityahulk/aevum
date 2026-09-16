@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS accounts (id VARCHAR(100) PRIMARY KEY, email VARCHAR(320) UNIQUE NOT NULL, password_hash VARCHAR(255) NOT NULL, person_id VARCHAR(100) UNIQUE NOT NULL, created_at VARCHAR(50) NOT NULL);
+CREATE TABLE IF NOT EXISTS sessions (token_hash VARCHAR(128) PRIMARY KEY, person_id VARCHAR(100) NOT NULL, expires_at BIGINT NOT NULL);
+CREATE TABLE IF NOT EXISTS records (id VARCHAR(100) PRIMARY KEY, person_id VARCHAR(100) NOT NULL, kind VARCHAR(64) NOT NULL, payload TEXT NOT NULL, created_at VARCHAR(50) NOT NULL);
+CREATE INDEX IF NOT EXISTS records_person_kind ON records(person_id, kind, created_at);
+CREATE TABLE IF NOT EXISTS events (id VARCHAR(100) PRIMARY KEY, person_id VARCHAR(100) NOT NULL, event_type VARCHAR(64) NOT NULL, status VARCHAR(30) NOT NULL, payload TEXT NOT NULL, created_at VARCHAR(50) NOT NULL);
+CREATE INDEX IF NOT EXISTS events_status ON events(status,created_at);
+CREATE TABLE IF NOT EXISTS observation_index (observation_id VARCHAR(100) NOT NULL, person_id VARCHAR(100) NOT NULL, concept_id VARCHAR(100) NOT NULL, effective_time TIMESTAMP WITH TIME ZONE NOT NULL, source VARCHAR(50) NOT NULL, encrypted_payload TEXT NOT NULL, PRIMARY KEY(observation_id,effective_time));
+CREATE INDEX IF NOT EXISTS observations_by_person_time ON observation_index(person_id,concept_id,effective_time);
+CREATE TABLE IF NOT EXISTS scientific_evidence (id VARCHAR(100) PRIMARY KEY, title TEXT NOT NULL, evidence_level VARCHAR(30) NOT NULL, citation TEXT NOT NULL, payload TEXT NOT NULL, embedding_text TEXT NOT NULL, ontology_version VARCHAR(100) NOT NULL);
+CREATE TABLE IF NOT EXISTS biological_relationships (id VARCHAR(100) PRIMARY KEY, domain_id VARCHAR(100) NOT NULL, phenotype TEXT NOT NULL, process TEXT NOT NULL, pathway TEXT NOT NULL, hallmark_id VARCHAR(50) NOT NULL, evidence_level VARCHAR(30) NOT NULL, confidence VARCHAR(30) NOT NULL, payload TEXT NOT NULL);
