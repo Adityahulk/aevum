@@ -6,6 +6,53 @@ Built from scratch from the three supplied specifications. No existing product r
 
 ![Aevum overview — synthetic sample data](docs/screenshots/desktop.png)
 
+## What Aevum delivers
+
+Aevum turns private health measurements into an auditable, longitudinal Biological Twin. It is built around personal baselines, visible uncertainty and evidence-linked claims instead of a single opaque “biological age” score.
+
+- **Private data intake:** CSV and text-PDF laboratory reports, Oura exports/OAuth, declared-build genotype files, and temporal context questionnaires.
+- **A versioned Biological Twin:** domain-level trajectories, source provenance, missingness/freshness, strengths, priorities and Twin history.
+- **Biology made inspectable:** observed signals connect to phenotype, process, pathway, hallmark and cited evidence, each with an explicit evidence tier.
+- **Action with learning:** goal-aware recommendations, safety gates, frozen experiment baselines, adherence and confounder capture, and conservative response evaluation.
+- **Grounded explanations:** every guide response resolves to stored observations, relationships and curated references. The optional language-model adapter can only select a bounded read-only retrieval route.
+
+## System design
+
+```mermaid
+flowchart LR
+  Person[Person] --> Web[React + TypeScript web app]
+  Web --> API[Spring Boot API]
+  API --> Identity[Accounts, sessions and consent]
+  API --> Vault[Encrypted records and immutable source artifacts]
+  API --> Twin[Versioned Twin and experiment history]
+  API --> Science[Python scientific service]
+  Science --> Rules[Baselines, trends, quality and response rules]
+  Science --> Evidence[Curated evidence and biological graph]
+  Science -. optional bounded tool selection .-> LLM[External language model]
+  Oura[Oura OAuth / export] --> API
+```
+
+The browser never calculates a health state. The Java API owns identity, consent, source ownership, encryption and persistence; the Python service owns validation, features, domain rules, intervention ranking and response evaluation. Raw reports and genomic arrays do not enter the external language-model path.
+
+## From measurement to learning
+
+```mermaid
+flowchart LR
+  A[Upload or connect source] --> B[Extract and normalize]
+  B --> C{Person reviews every row}
+  C -->|Confirmed| D[Canonical observations with provenance]
+  C -->|Corrected / excluded| B
+  D --> E[Personal baseline, trend, freshness and quality analysis]
+  E --> F[Versioned Biological Twin]
+  F --> G[Evidence-linked recommendations]
+  G --> H[Frozen experiment baseline and protocol]
+  H --> I[Follow-up, adherence and confounders]
+  I --> J[Conservative response classification]
+  J --> F
+```
+
+No observation becomes canonical until the person reviews it. A correction appends a superseding observation; it does not overwrite the original. Experiment outcomes are observational and do not establish causality or reversal of aging.
+
 ## Run locally
 
 Requirements: Python 3.10+, Java 21+ and internet access for first-time dependency installation. The bootstrap installs project-local Node 24 and Maven if needed. All generated tooling stays inside this project. A compatible Node already on PATH can also be used.
@@ -38,6 +85,23 @@ The local profile persists encrypted records in H2 and encrypted source files on
 - **Genotype:** `# build 37` or `# build 38`, then `rsID chromosome position genotype`. Build-specific coordinates are retained; no unvalidated liftover is performed. The first annotation panel is intentionally narrow: SLCO1B1 medication context requiring confirmation. Raw variants are stored separately and never sent to the language model.
 - **Context:** temporal structured lifestyle, medical and family-history questionnaires. Unknowns stay unknown.
 
+## Repository map
+
+| Area | Responsibility |
+|---|---|
+| `web/` | React interface, responsive UX, charts, accessibility and browser journeys |
+| `backend/` | Identity, consent, encrypted persistence, import review, source storage, Twin versions and experiments |
+| `analytics/` | Canonicalization, scientific rules, evidence catalog, retrieval, ranking and response evaluation |
+| `infra/` | PostgreSQL/TimescaleDB/pgvector initialization |
+| `scripts/` | Bootstrap, local development, test and environment-secret generation |
+| `docs/` | Requirements traceability, architecture and verification/release boundaries |
+
+## Safety, privacy and scientific boundaries
+
+Health and genomic payloads are encrypted with AES-256-GCM. Passwords are BCrypt-hashed; session tokens are random, stored as hashes and issued in HttpOnly, SameSite cookies. Consent is separately versioned for health, wearable, genomic, AI, clinician and research scopes. Revoking wearable processing removes provider tokens and recomputes the current Twin without wearable signals; historical Twin versions that contain them become inaccessible until consent is restored.
+
+The scientific model uses lab-provided reference intervals, personal historical medians, time-aware trends, wearable 7-day versus preceding-28-day comparisons, source quality, freshness, persistence and cross-signal agreement. It deliberately does not diagnose disease, prescribe medication, infer disease from family history/DNA, manufacture population norms, or claim that biomarker movement reverses aging.
+
 ## Tests
 
 ```bash
@@ -49,6 +113,17 @@ python3 scripts/test.py --browser
 The test runner covers scientific rules and parsers, Java identity/privacy/storage checks, TypeScript/build, browser journeys and automated accessibility checks. Browser tests create their own synthetic/demo or test accounts.
 
 ## Deployment topology
+
+```mermaid
+flowchart TB
+  Internet[Internet] --> TLS[TLS reverse proxy]
+  TLS --> Web[Nginx static web + same-origin API proxy]
+  Web --> API[Spring Boot API]
+  API --> Analytics[FastAPI scientific service]
+  API --> DB[(PostgreSQL + TimescaleDB + pgvector)]
+  API --> Objects[(S3-compatible immutable object store)]
+  Analytics --> Cache[(Redis public-catalog cache)]
+```
 
 ```bash
 python3 scripts/generate_env.py
@@ -69,3 +144,9 @@ Open `http://127.0.0.1:8088`. The Compose profile provides PostgreSQL/TimescaleD
 This is an engineering MVP with interpretable, versioned research rules. It does not produce a single biological age, diagnose disease, prescribe drugs, infer a current disease from DNA/family history, or equate improved biomarkers with reversal of aging. Source intervals, personal baselines, time-aware trends, persistence, cross-signal agreement, quality, missingness and uncertainty remain visible.
 
 The PDFs do not supply validated model coefficients, calibrated age/sex reference cohorts, a clinically reviewed annotation database, or a prospective validation study. Those are explicit clinical-release gates, not facts the software can manufacture. See the verification report for tested behavior and remaining external dependencies.
+
+## Documentation
+
+- [Requirements traceability and implementation phases](docs/IMPLEMENTATION_PLAN.md)
+- [Architecture and operating notes](docs/ARCHITECTURE.md)
+- [Verification results and release boundaries](docs/VERIFICATION.md)
