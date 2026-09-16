@@ -61,7 +61,7 @@ Health check: `/api/health`
 
 ```text
 PORT=8080
-BIND_ADDRESS=0.0.0.0
+BIND_ADDRESS=::
 AEVUM_ENV=production
 DATABASE_URL=jdbc:postgresql://${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}
 DATABASE_USER=${{Postgres.PGUSER}}
@@ -130,8 +130,11 @@ The redirect URI configured in Oura and the API variable must match exactly.
 ## Runtime notes
 
 - The containers accept Railway's `PORT` convention and bind on all container interfaces.
+- API and analytics use IPv6-capable listeners for Railway private networking. Nginx resolves the API at request time and refreshes DNS after redeployments, so starting web before API does not crash Nginx.
+- Leave custom Build and Start Commands empty: each service's Dockerfile supplies them. Set the root directories exactly as listed above before deploying; deploying the repository root as one service is not supported.
+- Set a 300-second health-check timeout and an on-failure restart policy in each application service's deployment settings.
+- Missing Bucket configuration fails API startup in production instead of silently storing uploads on ephemeral disk.
 - Railway's private DNS names are used for internal traffic; PostgreSQL, Redis, API, and analytics need no public TCP endpoints.
 - Railway Buckets use virtual-hosted S3 requests. Local Docker Compose sets path-style mode explicitly for MinIO.
 - The local `compose.yaml` remains the complete self-hosted development topology. Railway replaces its database, Redis, and MinIO containers with managed resources.
 - Scaled API replicas require a deliberate session/cache and migration strategy. Use one API replica for the first pilot unless load testing shows a need to scale.
-

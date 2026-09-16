@@ -1,0 +1,5 @@
+#!/bin/sh
+# Sourced by Nginx's entrypoint before rendering the template. Use the container's
+# DNS servers so private service addresses are refreshed after redeployments.
+export DNS_RESOLVERS="${DNS_RESOLVERS:-$(awk '/^nameserver / { if ($2 ~ /:/) printf "[%s] ", $2; else printf "%s ", $2 }' /etc/resolv.conf)}"
+: "${DNS_RESOLVERS:?No DNS resolver found}"

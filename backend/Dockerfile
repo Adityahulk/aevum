@@ -6,7 +6,7 @@ COPY src src
 RUN mvn -q -DskipTests package
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-ENV BIND_ADDRESS=0.0.0.0
+ENV BIND_ADDRESS=::
 RUN groupadd --system aevum && useradd --system --gid aevum aevum && mkdir .runtime && chown -R aevum:aevum /app
 COPY --from=build /build/target/aevum-api-0.1.0.jar app.jar
 USER aevum

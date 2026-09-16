@@ -1,0 +1,26 @@
+name: Deployment containers
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [web, backend, analytics]
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t aevum-test ./${{ matrix.service }}
+      - name: Check web startup without API and template rendering
+        if: matrix.service == 'web'
+        run: |
+          docker run -d --name web -p 18080:8080 -e API_UPSTREAM=http://unavailable-api.invalid:8080 aevum-test
+          trap 'docker logs web; docker rm -f web' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:18080/ >/dev/null; then
+              docker exec web nginx -t
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1

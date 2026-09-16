@@ -19,6 +19,8 @@ public class RawStorage {
     this.vault = vault;
     bucket = env("S3_BUCKET", "AWS_S3_BUCKET_NAME");
     if (bucket == null) {
+      if ("production".equals(System.getenv("AEVUM_ENV")))
+        throw new IllegalStateException("S3_BUCKET is required in production; local files are ephemeral");
       s3 = null;
     } else {
       var builder =
