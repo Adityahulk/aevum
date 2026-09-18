@@ -21,21 +21,39 @@ import {
 import { api, post, date, RecordData } from "../api";
 import { Badge, Button, Empty, SectionTitle, Modal } from "../components";
 import { useApp } from "../context";
+import { isWearable, WearableProvider } from "../wearables";
 export function DataPage() {
   const { state, me, route, go, setModal, run, busy, setError } = useApp();
-  const [tab, setTab] = useState("Bloodwork"),
+  const [tab, setTab] = useState(
+      new URLSearchParams(window.location.search).has("connected")
+        ? "Wearables"
+        : "Bloodwork",
+    ),
     [query, setQuery] = useState(route.split("/")[1] || ""),
-    [provider, setProvider] = useState<any>(null),
+    [providers, setProviders] = useState<WearableProvider[]>([]),
+    [providerId, setProviderId] = useState(
+      new URLSearchParams(window.location.search).get("connected") || "oura",
+    ),
     [draft, setDraft] = useState<any>(null);
   useEffect(() => {
-    api("/wearables/oura/status")
-      .then(setProvider)
-      .catch(() => {});
+    api("/wearables/providers")
+      .then((result) => {
+        setProviders(result.providers);
+        setProviderId((selected) =>
+          result.providers.some((p: WearableProvider) => p.id === selected)
+            ? selected
+            : result.providers[0]?.id || "oura",
+        );
+      })
+      .catch(() =>
+        setError("Wearable connections could not be loaded. Please refresh."),
+      );
   }, [state]);
+  const provider = providers.find((p) => p.id === providerId);
   const rows = state.observations
     .filter(
       (o: RecordData) =>
-        (tab === "Wearables" ? o.source === "oura" : o.source !== "oura") &&
+        (tab === "Wearables" ? isWearable(o.source) : !isWearable(o.source)) &&
         (!query ||
           (o.label + " " + o.concept_id)
             .toLowerCase()
@@ -101,13 +119,13 @@ export function DataPage() {
           <div>
             <h3>Wearables</h3>
             <p>
-              {provider?.connected
-                ? "Oura connected"
-                : state.observations.some(
-                      (o: RecordData) => o.source === "oura",
+              {providers.some((p) => p.connected)
+                ? providers.filter((p) => p.connected).length + " connected"
+                : state.observations.some((o: RecordData) =>
+                      isWearable(o.source),
                     )
-                  ? "Imported Oura data"
-                  : "Connect Oura or import data"}
+                  ? "Imported wearable data"
+                  : "Connect a wearable or import data"}
             </p>
           </div>
           <LinkIcon size={18} />
@@ -152,16 +170,47 @@ export function DataPage() {
           {tab === "Wearables" && (
             <section className="provider-banner card">
               <div>
-                <h3>Oura · your daily physiology</h3>
+                <h3>Your daily physiology</h3>
+                <label>
+                  <span className="muted text-small">
+                    Choose your wearable{" "}
+                  </span>
+                  <select
+                    aria-label="Wearable provider"
+                    value={providerId}
+                    onChange={(e) => setProviderId(e.target.value)}
+                  >
+                    {providers.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                        {p.connected ? " · Connected" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <p>
                   {provider?.connected
-                    ? "Your connection is active. Sync the last 30 days of sleep and activity."
-                    : "Connect Oura securely, or upload a JSON export. Sleep and activity signals are normalized automatically."}
+                    ? "Your connection is active. Sync recent measurements, then review them in Source documents."
+                    : provider?.detail}
                 </p>
                 <small className="muted">
-                  {!provider?.configured &&
-                    "Live connection requires the operator’s Oura OAuth configuration."}
+                  {provider?.mode === "oauth" &&
+                    !provider.configured &&
+                    "Connection is not available yet. You can import measurements now."}
+                  {provider?.last_sync?.status === "needs_attention" &&
+                    "Last sync needs attention. Try syncing again or reconnect."}
                 </small>
+                {provider?.mode === "template" && (
+                  <p>
+                    <a
+                      className="text-button"
+                      href="/fixtures/wearable-template.csv"
+                      download
+                    >
+                      Download wearable CSV template
+                    </a>
+                  </p>
+                )}
               </div>
               <div className="row wrap">
                 {!me.consents.wearable ? (
@@ -178,28 +227,66 @@ export function DataPage() {
                     >
                       Import export
                     </Button>
-                    <Button
-                      disabled={busy}
-                      onClick={() =>
-                        run(
-                          async () => {
-                            if (provider?.connected)
-                              return post("/wearables/oura/sync");
-                            const result = await post(
-                              "/wearables/oura/connect",
-                            );
-                            window.location.href = result.url;
-                            return result;
-                          },
-                          provider?.connected
-                            ? "Wearable sync completed"
-                            : undefined,
-                        )
-                      }
-                    >
-                      {provider?.connected ? "Sync Oura" : "Connect Oura"}
-                      <LinkIcon size={16} />
-                    </Button>
+                    {(provider?.mode === "oauth" || provider?.connected) && (
+                      <Button
+                        disabled={busy || !provider.configured}
+                        onClick={() =>
+                          run(
+                            async () => {
+                              if (provider?.connected)
+                                return post(`/wearables/${providerId}/sync`);
+                              const result = await post(
+                                `/wearables/${providerId}/connect`,
+                              );
+                              window.location.href = result.url;
+                              return result;
+                            },
+                            provider?.connected
+                              ? "Sync requested. Available measurements appear in Source documents for review."
+                              : undefined,
+                          )
+                        }
+                      >
+                        {provider?.connected
+                          ? `Sync ${provider.name}`
+                          : `Connect ${provider?.name}`}
+                        <LinkIcon size={16} />
+                      </Button>
+                    )}
+                    {provider?.mode === "mobile" &&
+                      !provider.connected &&
+                      (provider.companion_url ? (
+                        <a
+                          className="text-button"
+                          href={provider.companion_url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Get mobile companion <ArrowUpRight size={16} />
+                        </a>
+                      ) : (
+                        <span className="muted text-small">
+                          Mobile companion distribution is not configured yet.
+                          Apple Health exports can be imported now.
+                        </span>
+                      ))}
+                    {provider?.connected && (
+                      <Button
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() =>
+                          run(
+                            () =>
+                              api(`/wearables/${providerId}/disconnect`, {
+                                method: "DELETE",
+                              }),
+                            "Wearable disconnected. Previously imported data is retained.",
+                          )
+                        }
+                      >
+                        Disconnect
+                      </Button>
+                    )}
                   </>
                 )}
               </div>
@@ -263,8 +350,8 @@ export function DataPage() {
                             href={"/api/sources/" + o.provenance_id}
                           >
                             <FileText size={13} />
-                            {o.source === "oura"
-                              ? "Oura data"
+                            {isWearable(o.source)
+                              ? o.source.replaceAll("_", " ") + " data"
                               : "Source report"}
                             <ArrowUpRight size={12} />
                           </a>
@@ -616,7 +703,7 @@ export function UploadModal({
                 kind === "labs"
                   ? ".pdf,.csv"
                   : kind === "wearable"
-                    ? ".json"
+                    ? ".json,.xml,.zip,.csv"
                     : ".txt,.csv"
               }
               onChange={(e) => setFile(e.target.files?.[0] || null)}
@@ -631,7 +718,7 @@ export function UploadModal({
               {kind === "labs"
                 ? "PDF or CSV lab report"
                 : kind === "wearable"
-                  ? "Oura v2 sleep / activity JSON"
+                  ? "Wearable JSON, Apple Health XML/ZIP or daily CSV"
                   : "Consumer genotype TXT or CSV · build 37 or 38"}
             </span>
             <small>Up to 15 MB · Your source stays private</small>
@@ -642,7 +729,7 @@ export function UploadModal({
               {kind === "labs"
                 ? "Text-based PDF results are extracted conservatively. Scanned or complex layouts can be entered manually after reviewing the original."
                 : kind === "wearable"
-                  ? "Upload the Oura v2 JSON data array. Dates, units and signal names are normalized automatically."
+                  ? "Import Oura JSON, a supported provider sync JSON, Apple Health export.xml, or the wearable CSV template. Review the measurements before they update your Twin. Apple SDNN is not imported as RMSSD HRV."
                   : "Include rsID, chromosome, position and genotype, plus an explicit # build 37 or # build 38 header. Raw variants are never sent to the guide."}
             </span>
           </div>

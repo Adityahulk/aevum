@@ -1,6 +1,6 @@
 # Railway deployment
 
-This runbook deploys the MVP as three application services and three managed resources. Only the web service receives a public domain.
+This runbook deploys the MVP as three application services and three managed resources. Only the web service receives a public domain in the core deployment. For live wearable connections, also deploy the services and restricted callback gateway in [Open Wearables deployment](OPEN_WEARABLES.md).
 
 ```mermaid
 flowchart LR
@@ -75,9 +75,13 @@ S3_REGION=${{Bucket.REGION}}
 S3_PATH_STYLE=false
 AWS_ACCESS_KEY_ID=${{Bucket.ACCESS_KEY_ID}}
 AWS_SECRET_ACCESS_KEY=${{Bucket.SECRET_ACCESS_KEY}}
-OURA_CLIENT_ID=
-OURA_CLIENT_SECRET=
-OURA_REDIRECT_URI=
+OPEN_WEARABLES_URL=
+OPEN_WEARABLES_API_KEY=
+PUBLIC_APP_URL=https://YOUR_DOMAIN
+OPEN_WEARABLES_PUBLIC_URL=
+OPEN_WEARABLES_APP_ID=
+OPEN_WEARABLES_APP_SECRET=
+WEARABLE_COMPANION_URL=
 ```
 
 Do not generate a public domain for this service. Database initialization is idempotent and runs when the API starts. The connection pool waits for PostgreSQL during a fresh project start; Railway can restart the service if the managed database needs longer.
@@ -115,17 +119,17 @@ Then complete these browser checks:
 5. Download the imported source to verify encrypted Bucket storage.
 6. Restart all three application services and repeat the health and sign-in checks.
 
-Enable Railway backups for PostgreSQL before inviting pilot users and test a restoration procedure. Keep the API and analytics services private, rotate secrets after any suspected exposure, and place a custom domain on `web` before configuring Oura OAuth.
+Enable Railway backups for PostgreSQL before inviting pilot users and test a restoration procedure. Keep the API and analytics services private, rotate secrets after any suspected exposure, and place a custom domain on `web` before configuring wearable callbacks.
 
 ## 5. Custom domain and provider callbacks
 
 Add the custom domain to `web`, configure the DNS record Railway supplies, and wait for TLS issuance. Use the final HTTPS origin everywhere. For example:
 
 ```text
-OURA_REDIRECT_URI=https://app.example.com/api/wearables/oura/callback
+PUBLIC_APP_URL=https://app.example.com
 ```
 
-The redirect URI configured in Oura and the API variable must match exactly.
+Provider callbacks terminate on the separate restricted wearable gateway, not on the Aevum API. Follow [Open Wearables deployment](OPEN_WEARABLES.md) for callback URLs and provider credentials.
 
 ## Runtime notes
 

@@ -3,6 +3,7 @@ import json
 from collections import defaultdict
 from datetime import datetime, timezone
 from statistics import mean, median, pstdev
+from wearables import is_wearable
 
 from catalog import (
     CONCEPTS,
@@ -66,13 +67,17 @@ def features(observations, now):
             grouped[o["concept_id"]].append(o)
     out = {}
     for code, obs in grouped.items():
+        # Different devices/methods cannot form a single personal baseline.
+        latest_source = max(obs, key=when)["source"]
+        if is_wearable(latest_source):
+            obs = [o for o in obs if o["source"] == latest_source]
         # A sample/day contributes once, so duplicate providers cannot inflate confidence.
         by_day = {}
         for o in sorted(obs, key=when):
             by_day[when(o).date()] = o
         obs = sorted(by_day.values(), key=when)
         current = obs[-1]
-        wearable = current["source"] == "oura"
+        wearable = is_wearable(current["source"])
         window = 28 if wearable else 730
         recent = [o for o in obs if (when(current) - when(o)).days <= window]
         if wearable:
@@ -508,7 +513,7 @@ def evaluate(payload):
             continue
         follow = (
             mean(o["value"] for o in same_source[-7:])
-            if same_source[-1]["source"] == "oura"
+            if is_wearable(same_source[-1]["source"])
             else same_source[-1]["value"]
         )
         pct = (follow - base["value"]) / abs(base["value"]) * 100

@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [web, backend, analytics]
+        service: [web, backend, analytics, infra/open-wearables, infra/open-wearables-gateway]
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t aevum-test ./${{ matrix.service }}

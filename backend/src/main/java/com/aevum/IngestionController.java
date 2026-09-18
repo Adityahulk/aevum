@@ -47,10 +47,15 @@ public class IngestionController {
       throw new Api.Failure(422, "Choose a nonempty file up to 15 MB.");
     String ext = name.toLowerCase(Locale.ROOT);
     if (kind.equals("labs") && !ext.endsWith(".pdf") && !ext.endsWith(".csv")
-        || kind.equals("wearable") && !ext.endsWith(".json")
+        || kind.equals("wearable")
+            && !ext.endsWith(".json")
+            && !ext.endsWith(".xml")
+            && !ext.endsWith(".csv")
+            && !ext.endsWith(".zip")
         || kind.equals("genomics") && !ext.endsWith(".txt") && !ext.endsWith(".csv"))
       throw new Api.Failure(
-          422, "Choose a PDF/CSV lab report, JSON wearable export, or TXT/CSV genotype file.");
+          422,
+          "Choose a PDF/CSV lab report, JSON/XML/CSV wearable export, or TXT/CSV genotype file.");
     byte[] content = file.getBytes();
     String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
     for (var a : store.list(p, "artifact"))
@@ -221,7 +226,7 @@ public class IngestionController {
     String p = Api.person(r);
     auth.require(p, "health");
     var original = store.get(p, "observation", id);
-    if ("oura".equals(original.get("source"))) auth.require(p, "wearable");
+    if (Wearables.isWearable(original.get("source"))) auth.require(p, "wearable");
     String reason = Api.str(b, "reason", "").trim();
     if (reason.length() < 3)
       throw new Api.Failure(422, "Explain the correction for your audit trail.");

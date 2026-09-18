@@ -163,8 +163,7 @@ class SecurityConfiguration implements WebMvcConfigurer {
                     && !"1".equals(r.getHeader("X-Aevum-Request")))
                   throw new Api.Failure(403, "Request verification failed");
                 String fetch = r.getHeader("Sec-Fetch-Site");
-                if ("cross-site".equals(fetch)
-                    && !r.getRequestURI().equals("/api/wearables/oura/callback"))
+                if ("cross-site".equals(fetch))
                   throw new Api.Failure(403, "Cross-site requests are not allowed");
                 if (r.getRequestURI().startsWith("/api/auth/")) {
                   String key = r.getRemoteAddr();
@@ -201,13 +200,16 @@ class IdentityController {
   final TwinService twins;
   final DemoService demo;
   final RawStorage raw;
+  final OpenWearables wearables;
 
-  IdentityController(Store s, Auth a, TwinService t, DemoService d, RawStorage raw) {
+  IdentityController(
+      Store s, Auth a, TwinService t, DemoService d, RawStorage raw, OpenWearables wearables) {
     store = s;
     auth = a;
     twins = t;
     demo = d;
     this.raw = raw;
+    this.wearables = wearables;
   }
 
   @GetMapping("/health")
@@ -313,19 +315,25 @@ class IdentityController {
     if (!List.of("health", "wearable", "genomics", "ai", "clinician", "research").contains(scope)
         || !(b.get("granted") instanceof Boolean))
       throw new Api.Failure(422, "Invalid consent scope or decision");
-    var c =
-        store.add(
-            p,
-            "consent",
-            Map.of("scope", scope, "granted", b.get("granted"), "policy_version", "2026-09-v1"));
-    store.audit(p, "ConsentChanged", scope);
-    if (Boolean.FALSE.equals(b.get("granted")) && scope.equals("wearable")) {
-      store.db.update(
-          "DELETE FROM records WHERE person_id=? AND kind IN ('oura_token','oauth_state')", p);
+    synchronized (wearables) {
+      if (Boolean.FALSE.equals(b.get("granted"))
+          && (scope.equals("wearable") || scope.equals("health"))) wearables.purge(p);
+      var c =
+          store.add(
+              p,
+              "consent",
+              Map.of("scope", scope, "granted", b.get("granted"), "policy_version", "2026-09-v1"));
+      store.audit(p, "ConsentChanged", scope);
+      if (Boolean.FALSE.equals(b.get("granted")) && scope.equals("wearable")) {
+        store.db.update(
+            "DELETE FROM records WHERE person_id=? AND (kind IN ('oura_token','oauth_state') OR"
+                + " kind LIKE 'wearable:%')",
+            p);
+      }
+      if (auth.consent(p, "health") && (scope.equals("wearable") || scope.equals("health")))
+        twins.refresh(p, "Processing permissions updated", Set.of());
+      return c;
     }
-    if (auth.consent(p, "health") && (scope.equals("wearable") || scope.equals("health")))
-      twins.refresh(p, "Processing permissions updated", Set.of());
-    return c;
   }
 
   @org.springframework.transaction.annotation.Transactional
@@ -419,14 +427,17 @@ class IdentityController {
     String p = Api.person(r);
     if (!"DELETE".equals(b.get("confirmation")))
       throw new Api.Failure(422, "Type DELETE to confirm account deletion.");
-    for (var a : store.list(p, "artifact")) raw.delete(a.get("storage_key").toString());
-    store.db.update("DELETE FROM observation_index WHERE person_id=?", p);
-    store.db.update("DELETE FROM records WHERE person_id=?", p);
-    store.db.update("DELETE FROM events WHERE person_id=?", p);
-    store.db.update("DELETE FROM sessions WHERE person_id=?", p);
-    store.db.update("DELETE FROM accounts WHERE person_id=?", p);
-    response.addHeader(
-        "Set-Cookie", "aevum_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0");
-    return Map.of("deleted", true);
+    synchronized (wearables) {
+      wearables.purge(p);
+      for (var a : store.list(p, "artifact")) raw.delete(a.get("storage_key").toString());
+      store.db.update("DELETE FROM observation_index WHERE person_id=?", p);
+      store.db.update("DELETE FROM records WHERE person_id=?", p);
+      store.db.update("DELETE FROM events WHERE person_id=?", p);
+      store.db.update("DELETE FROM sessions WHERE person_id=?", p);
+      store.db.update("DELETE FROM accounts WHERE person_id=?", p);
+      response.addHeader(
+          "Set-Cookie", "aevum_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0");
+      return Map.of("deleted", true);
+    }
   }
 }

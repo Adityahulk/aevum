@@ -14,10 +14,10 @@ flowchart LR
   Java --> Twin[Immutable Twin snapshots]
   Twin --> Experiment[Baseline / experiment / response]
   Experiment --> Twin
-  Oura[Oura OAuth] --> Java
+  Wearables[Open Wearables\ncloud providers + native SDK] --> Java
 ```
 
-The browser is an interface; it does not calculate authoritative health states. Spring Boot owns identity, consent, source ownership, transactions, persistence, events and external credentials. Python owns canonical validation, scientific features, phenotype rules, evidence, ranking, response calculations and bounded explanations. Raw reports and genotype arrays never enter the external language model.
+The browser is an interface; it does not calculate authoritative health states. Spring Boot owns identity, consent, source ownership, transactions, persistence, events and the server-only Open Wearables credential. Python owns canonical validation, scientific features, phenotype rules, evidence, ranking, response calculations and bounded explanations. Raw reports and genotype arrays never enter the external language model. The separate wearable service owns provider OAuth credentials and native device token refresh; its integration boundary is documented in [Open Wearables integration](OPEN_WEARABLES.md).
 
 ## Profiles
 

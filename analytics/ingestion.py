@@ -101,6 +101,8 @@ def normalized_row(row, source="lab_csv", provenance_id="", reviewed=False):
         "provenance_id": provenance_id,
         "original_value": row.get("value"),
         "original_unit": supplied,
+        "measurement_method": row.get("measurement_method", ""),
+        "device_name": row.get("device_name", ""),
     }
 
 
@@ -320,7 +322,8 @@ def parse_upload(payload):
     if kind == "labs":
         return parse_labs(content, filename, artifact)
     if kind == "wearable":
-        return parse_oura(content, artifact)
+        from wearables import parse_wearable
+        return parse_wearable(content, filename, artifact)
     if kind == "genomics":
         return parse_genotype(content, artifact)
     raise ValueError("Unsupported upload type.")

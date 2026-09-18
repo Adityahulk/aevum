@@ -2,28 +2,11 @@
 
 Aevum runs without a paid third-party API. The sample Twin, accounts, file imports, scientific model, experiments, deterministic guide, export, and deletion all work with the Railway resources in the deployment runbook.
 
-## Oura OAuth (optional, recommended for wearable pilots)
+## Wearables: Open Wearables
 
-1. Sign in to the Oura developer portal and create an OAuth2 application.
-2. Use the final public application URL as the website URL.
-3. Register this exact redirect URI:
+Open Wearables is the only live wearable integration service. Deploy it using [the complete runbook](OPEN_WEARABLES.md), provision its server API key, and configure each enabled provider's OAuth credentials there. No Terra key or direct provider credentials belong in Aevum.
 
-   ```text
-   https://YOUR_DOMAIN/api/wearables/oura/callback
-   ```
-
-4. Add these variables to Railway's `api` service:
-
-   ```text
-   OURA_CLIENT_ID=<client id>
-   OURA_CLIENT_SECRET=<client secret>
-   OURA_REDIRECT_URI=https://YOUR_DOMAIN/api/wearables/oura/callback
-   ```
-
-5. Redeploy `api`, create a consenting test account, connect Oura from Sources, and verify that the callback returns to the Sources screen.
-6. Confirm a sync creates reviewable wearable observations and that disconnecting the provider removes the stored refresh token.
-
-The implementation requests daily-data access and normalizes Oura v2 sleep and activity responses. OAuth app review and user limits are controlled by Oura. A person can instead import an Oura v2 JSON export, so this integration does not block the MVP.
+The runbook covers Railway services, restricted public callbacks, provider approvals, user-scoped tokens, background imports, and the Apple Health/Android mobile companion. Connecting a brand still requires its developer credentials and any required approval; Open Wearables does not bypass those requirements. File imports remain available without it.
 
 ## Anthropic (optional)
 
@@ -53,4 +36,3 @@ These are operational product additions and are not required by the current MVP 
 - **Product analytics:** if added, collect explicit consent and use an allowlist of non-health events. Never send biomarker values, genomic data, uploaded filenames, Guide questions, or account exports.
 
 Choose those providers only after the privacy terms, data region, retention settings, and data-processing agreement match the pilot's jurisdiction.
-

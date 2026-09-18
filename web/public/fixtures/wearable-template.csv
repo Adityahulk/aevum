@@ -1,0 +1,5 @@
+provider,concept_id,value,unit,date,measurement_method
+garmin,RHR,58,bpm,2026-09-01,
+garmin,HRV,45,ms,2026-09-01,RMSSD
+garmin,SLEEP,7.5,h,2026-09-01,
+garmin,STEPS,8500,steps,2026-09-01,

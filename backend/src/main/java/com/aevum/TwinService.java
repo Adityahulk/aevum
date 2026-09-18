@@ -26,7 +26,7 @@ public class TwinService {
       if (o.containsKey("supersedes")) superseded.add(o.get("supersedes").toString());
     return all.stream()
         .filter(o -> !superseded.contains(o.get("id").toString()))
-        .filter(o -> !"oura".equals(o.get("source")) || auth.consent(p, "wearable"))
+        .filter(o -> !Wearables.isWearable(o.get("source")) || auth.consent(p, "wearable"))
         .toList();
   }
 
@@ -208,7 +208,7 @@ class TwinController {
     var t = s.get(p, "twin", id);
     if (!auth.consent(p, "wearable")
         && Api.map(t.get("features")).values().stream()
-            .anyMatch(f -> "oura".equals(Api.map(f).get("source"))))
+            .anyMatch(f -> Wearables.isWearable(Api.map(f).get("source"))))
       throw new Api.Failure(
           403,
           "This historical version includes wearable data. Restore wearable consent to inspect"
