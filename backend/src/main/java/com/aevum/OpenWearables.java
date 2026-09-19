@@ -107,7 +107,9 @@ public class OpenWearables {
       if (e.getStatusCode().value() == 404 && method == HttpMethod.DELETE) return Map.of();
       throw new Api.Failure(
           e.getStatusCode().value() == 429 ? 429 : 502,
-          "Wearable service rejected the request. Check configuration or retry later.");
+          "Wearable service rejected the request (upstream status "
+              + e.getStatusCode().value()
+              + "). Check configuration or retry later.");
     } catch (RestClientException e) {
       log.warn("Open Wearables request failed for {} {}: {}", method, path, e.getClass().getSimpleName());
       throw new Api.Failure(503, "Wearable service is temporarily unavailable. Please retry.");
