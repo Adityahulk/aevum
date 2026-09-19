@@ -11,10 +11,13 @@ import org.springframework.http.*;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Server-only gateway. Upstream user IDs are never accepted from clients. */
 @Service
 public class OpenWearables {
+  private static final Logger log = LoggerFactory.getLogger(OpenWearables.class);
   final Store store;
   final Auth auth;
   final Science science;
@@ -100,11 +103,13 @@ public class OpenWearables {
       if (body != null) req.contentType(MediaType.APPLICATION_JSON).body(body);
       return req.retrieve().body(Object.class);
     } catch (HttpClientErrorException e) {
+      log.warn("Open Wearables rejected {} {} with status {}", method, path, e.getStatusCode().value());
       if (e.getStatusCode().value() == 404 && method == HttpMethod.DELETE) return Map.of();
       throw new Api.Failure(
           e.getStatusCode().value() == 429 ? 429 : 502,
           "Wearable service rejected the request. Check configuration or retry later.");
     } catch (RestClientException e) {
+      log.warn("Open Wearables request failed for {} {}: {}", method, path, e.getClass().getSimpleName());
       throw new Api.Failure(503, "Wearable service is temporarily unavailable. Please retry.");
     }
   }
