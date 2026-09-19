@@ -6,13 +6,13 @@ from app.main import api
 
 @api.middleware("http")
 async def log_aevum_user_create(request, call_next):
-    # Keep this narrowly scoped and never log a body: it verifies the integration contract
-    # without placing health data or credentials in Railway logs.
+    # Keep this narrowly scoped and never read a body: FastAPI's downstream parser must own
+    # the request stream. This only records transport metadata without data or credentials.
     if request.method == "POST" and request.url.path == "/api/v1/users":
-        body = await request.body()
         print(
             "Aevum user-create request "
-            f"content-type={request.headers.get('content-type', '')} bytes={len(body)}",
+            f"content-type={request.headers.get('content-type', '')} "
+            f"content-length={request.headers.get('content-length', '')}",
             flush=True,
         )
     return await call_next(request)
