@@ -71,7 +71,10 @@ public class OpenWearables {
   static RestClient client() {
     var factory =
         new JdkClientHttpRequestFactory(
-            HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build());
+            HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(Duration.ofSeconds(10))
+                .build());
     factory.setReadTimeout(Duration.ofSeconds(30));
     return RestClient.builder().requestFactory(factory).build();
   }
