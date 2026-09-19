@@ -112,7 +112,10 @@ public class OpenWearables {
               .uri(URI.create(base + "/api/v1" + path))
               .header("X-Open-Wearables-API-Key", key)
               .accept(MediaType.APPLICATION_JSON);
-      if (body != null) req.contentType(MediaType.APPLICATION_JSON).body(body);
+      // Serialize explicitly: the upstream FastAPI contract requires a JSON request body for
+      // user creation and SDK-token minting, and this avoids transport-specific Map conversion.
+      if (body != null)
+        req.contentType(MediaType.APPLICATION_JSON).body(store.json.writeValueAsString(body));
       return req.retrieve().body(Object.class);
     } catch (HttpClientErrorException e) {
       log.warn("Open Wearables rejected {} {} with status {}", method, path, e.getStatusCode().value());
@@ -127,6 +130,9 @@ public class OpenWearables {
     } catch (RestClientException e) {
       log.warn("Open Wearables request failed for {} {}: {}", method, path, e.getClass().getSimpleName());
       throw new Api.Failure(503, "Wearable service is temporarily unavailable. Please retry.");
+    } catch (Exception e) {
+      log.warn("Open Wearables request could not be encoded for {} {}", method, path, e);
+      throw new Api.Failure(503, "Wearable service request could not be prepared. Please retry.");
     }
   }
 
