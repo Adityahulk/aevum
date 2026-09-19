@@ -90,6 +90,18 @@ public class OpenWearables {
     return id;
   }
 
+  static String safeUpstreamDetail(HttpClientErrorException e) {
+    try {
+      Object detail = Api.map(new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+          e.getResponseBodyAsString(), Object.class)).get("detail");
+      if (detail instanceof String text && text.length() <= 240)
+        return ": " + text.replaceAll("[\\r\\n]", " ");
+    } catch (Exception ignored) {
+      // Only a short, string-valued detail is safe to surface. Validation payloads may echo input.
+    }
+    return "";
+  }
+
   Object call(HttpMethod method, String path, Object body) {
     if (!configured())
       throw new Api.Failure(
@@ -109,7 +121,9 @@ public class OpenWearables {
           e.getStatusCode().value() == 429 ? 429 : 502,
           "Wearable service rejected the request (upstream status "
               + e.getStatusCode().value()
-              + "). Check configuration or retry later.");
+              + ")"
+              + safeUpstreamDetail(e)
+              + ". Check configuration or retry later.");
     } catch (RestClientException e) {
       log.warn("Open Wearables request failed for {} {}: {}", method, path, e.getClass().getSimpleName());
       throw new Api.Failure(503, "Wearable service is temporarily unavailable. Please retry.");
