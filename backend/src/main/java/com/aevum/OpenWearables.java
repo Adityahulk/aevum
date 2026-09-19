@@ -114,9 +114,10 @@ public class OpenWearables {
               .accept(MediaType.APPLICATION_JSON);
       // Serialize explicitly: the upstream FastAPI contract requires a JSON request body for
       // user creation and SDK-token minting, and this avoids transport-specific Map conversion.
+      org.springframework.web.client.RestClient.RequestHeadersSpec<?> sent = req;
       if (body != null)
-        req.contentType(MediaType.APPLICATION_JSON).body(store.json.writeValueAsString(body));
-      return req.retrieve().body(Object.class);
+        sent = req.contentType(MediaType.APPLICATION_JSON).body(store.json.writeValueAsString(body));
+      return sent.retrieve().body(Object.class);
     } catch (HttpClientErrorException e) {
       log.warn("Open Wearables rejected {} {} with status {}", method, path, e.getStatusCode().value());
       if (e.getStatusCode().value() == 404 && method == HttpMethod.DELETE) return Map.of();
