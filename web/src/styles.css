@@ -1178,6 +1178,12 @@ a svg {
   color: #616763;
   font-size: 10px;
 }
+.coverage-note {
+  display: block;
+  margin-top: 7px;
+  color: #707772;
+  font-size: 9px;
+}
 .unmeasured {
   background: #fcfdfc;
 }
@@ -1309,6 +1315,16 @@ a svg {
 }
 .chart-current > .muted {
   font-size: 11px;
+}
+.signal-status-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+}
+.signal-status-stack > .muted {
+  font-size: 11px;
+  line-height: 1.5;
 }
 .table-scroll {
   overflow: auto;
@@ -1511,6 +1527,14 @@ dd {
 }
 .process-node > strong {
   color: #756552;
+}
+.graph-neutral-node {
+  border-style: solid;
+  background: #f7f8f5;
+  border-color: #e1e5de;
+}
+.graph-neutral-node > strong {
+  color: #616963;
 }
 .hallmark-node {
   background: #f2f6f4;

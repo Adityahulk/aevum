@@ -15,8 +15,15 @@ import { Badge, Button, Empty, SectionTitle } from "../components";
 import { useApp } from "../context";
 export function BiologyPage() {
   const { state, catalog, route, go, setModal } = useApp();
-  const selected =
-    route.split("/")[1] || state.twin.priorities[0] || "metabolic";
+  const measuredDomains = state.twin.domains.filter(
+    (domain: RecordData) => domain.signals.length > 0,
+  );
+  const requested = route.split("/")[1];
+  const selected = measuredDomains.some((domain: RecordData) => domain.id === requested)
+    ? requested
+    : state.twin.priorities.find((id: string) =>
+        measuredDomains.some((domain: RecordData) => domain.id === id),
+      ) || measuredDomains[0]?.id || requested || "metabolic";
   const d = state.twin.domains.find((d: RecordData) => d.id === selected);
   const rels = state.twin.relationships.filter(
     (r: RecordData) => r.domain === selected,
@@ -42,9 +49,7 @@ export function BiologyPage() {
         </Button>
       </div>
       <div className="tabs scroll-tabs">
-        {state.twin.domains
-          .filter((d: RecordData) => d.phenotype)
-          .map((d: RecordData) => (
+        {measuredDomains.map((d: RecordData) => (
             <button
               className={selected === d.id ? "active" : ""}
               key={d.id}
@@ -60,7 +65,11 @@ export function BiologyPage() {
       <section className="biology-map card">
         <div className="row between">
           <div>
-            <Badge tone="purple">An evidence-weighted interpretation</Badge>
+            <Badge tone={d?.phenotype ? "purple" : "green"}>
+              {d?.phenotype
+                ? "An evidence-weighted interpretation"
+                : "Measured domain · interpretation limited"}
+            </Badge>
             <h2>{d?.name}</h2>
           </div>
           <button className="text-button" onClick={() => go("ai/" + selected)}>
@@ -68,16 +77,17 @@ export function BiologyPage() {
             Explain this map
           </button>
         </div>
-        {rels.length ? (
+        {d?.signals?.length ? (
           <>
             <div className="graph-layers">
               <div className="graph-column">
                 <span className="graph-label">01 · OBSERVED</span>
-                {d.signals
-                  .filter(
-                    (s: RecordData) => s.abnormal || s.trend === "Worsening",
+                {[...d.signals]
+                  .sort(
+                    (a: RecordData, b: RecordData) =>
+                      Number(b.abnormal) - Number(a.abnormal),
                   )
-                  .slice(0, 3)
+                  .slice(0, 5)
                   .map((s: RecordData) => (
                     <button
                       key={s.concept_id}
@@ -86,7 +96,7 @@ export function BiologyPage() {
                         setNode({
                           title: s.label,
                           type: "Observed measurement",
-                          text: `${s.current} ${s.unit}, measured ${date(s.latest_date)}. ${s.count} observations support the history.`,
+                          text: `${s.current} ${s.unit}, measured ${date(s.latest_date)}. ${s.reference_status}. ${s.longitudinal_status}.`,
                           ...s,
                         })
                       }
@@ -111,15 +121,19 @@ export function BiologyPage() {
                   className="graph-node phenotype-node"
                   onClick={() =>
                     setNode({
-                      title: d.phenotype,
+                      title: d.phenotype || "No concerning phenotype established",
                       type: "Phenotype inference",
-                      text: `${d.state}, ${d.confidence.toLowerCase()} confidence. Multiple signals are interpreted together. This is not a diagnosis.`,
+                      text: d.phenotype
+                        ? `${d.state}, ${d.confidence.toLowerCase()} confidence. Multiple signals are interpreted together. This is not a diagnosis.`
+                        : `${d.state}. Current measurements do not establish a concerning domain phenotype. Repeat measurements are needed for trajectory.`,
                     })
                   }
                 >
                   <Layers size={22} />
-                  <strong>{d.phenotype}</strong>
-                  <Badge tone="purple">{d.confidence} confidence</Badge>
+                  <strong>{d.phenotype || "No concerning phenotype established"}</strong>
+                  <Badge tone={d.phenotype ? "purple" : "green"}>
+                    {d.confidence} confidence
+                  </Badge>
                 </button>
               </div>
               <div className="graph-connector branching">
@@ -156,6 +170,15 @@ export function BiologyPage() {
                     </span>
                   </button>
                 ))}
+                {!rels.length && (
+                  <div className="graph-node process-node graph-neutral-node">
+                    <Badge>Not inferred</Badge>
+                    <strong>No biological process inferred</strong>
+                    <span className="text-small muted">
+                      A single cross-sectional panel cannot establish an active mechanism.
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="graph-connector">
                 <ArrowRight />
@@ -190,6 +213,15 @@ export function BiologyPage() {
                     </span>
                   </button>
                 ))}
+                {!rels.length && (
+                  <div className="graph-node hallmark-node graph-neutral-node">
+                    <Dna size={22} />
+                    <strong>No individual hallmark mapping</strong>
+                    <span className="text-small muted">
+                      The framework remains visible without claiming it was measured.
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="graph-legend">
@@ -205,9 +237,8 @@ export function BiologyPage() {
             </div>
           </>
         ) : (
-          <Empty title="No supported mapping yet">
-            A biology map appears when sufficient data supports a phenotype. We
-            don’t draw molecular conclusions from missing measurements.
+          <Empty title="No measured domain yet">
+            Add validated measurements to build an evidence-linked biology map.
           </Empty>
         )}
       </section>

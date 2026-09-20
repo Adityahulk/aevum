@@ -121,6 +121,8 @@ def features(observations, now):
             run.append(o)
         persistence = (when(run[0]) - when(run[-1])).days if len(run) > 1 else 0
         quality = mean(o.get("confidence", 0.7) for o in recent)
+        source_interval = current.get("reference_range") or {}
+        has_source_interval = source_interval.get("low") is not None or source_interval.get("high") is not None
         f = {
             "concept_id": code,
             "label": CONCEPTS[code][0],
@@ -135,6 +137,18 @@ def features(observations, now):
             "slope_per_day": round(slope, 5) if slope is not None else None,
             "trend": trend,
             "abnormal": outside(current),
+            "reference_status": (
+                "Outside source interval"
+                if has_source_interval and outside(current)
+                else "Within source interval"
+                if has_source_interval
+                else "No source interval provided"
+            ),
+            "longitudinal_status": (
+                "Personal baseline established"
+                if baseline is not None
+                else "Repeat measurement needed for a personal baseline"
+            ),
             "population_deviation": round(ref_deviation(current), 3),
             "persistence_days": persistence,
             "count": len(recent),
@@ -205,7 +219,7 @@ def compute(payload):
             if len(concerning) >= 3
             else "Moderate concern"
             if concerning
-            else "Favorable"
+            else "Within source intervals"
             if refs
             else "Within personal baseline"
             if any(f["baseline"] is not None for f in fresh)
@@ -248,6 +262,9 @@ def compute(payload):
             "trend": trend,
             "confidence": confidence,
             "coverage": coverage,
+            "available_marker_count": len(fresh),
+            "configured_marker_count": len(codes),
+            "coverage_explanation": "Availability of configured markers; not a health score",
             "signals": signals,
             "supporting_observation_ids": list(
                 dict.fromkeys(o for f in signals for o in f["observation_ids"])
@@ -349,7 +366,7 @@ def compute(payload):
         "strengths": [
             d["id"]
             for d in domains
-            if d["state"] in ("Favorable", "Within personal baseline") and d["coverage"] > 0
+            if d["state"] in ("Within source intervals", "Within personal baseline") and d["coverage"] > 0
         ],
     }
 

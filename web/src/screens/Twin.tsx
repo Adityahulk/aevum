@@ -114,12 +114,18 @@ export function TwinPage() {
               </div>
               <div className="coverage">
                 <div>
-                  <span>Coverage</span>
-                  <span>{d.coverage}%</span>
+                  <span>Data availability</span>
+                  <span>
+                    {d.available_marker_count} of {d.configured_marker_count} markers
+                  </span>
                 </div>
-                <div className="progress-track">
+                <div
+                  className="progress-track"
+                  title="Availability of configured markers, not a health score"
+                >
                   <span style={{ width: d.coverage + "%" }} />
                 </div>
+                <small className="coverage-note">Availability, not a health score</small>
               </div>
               <div className="row between text-small muted">
                 <span>{d.confidence} confidence</span>
@@ -194,7 +200,10 @@ export function DomainDetail({ d, twin }: { d: RecordData; twin: RecordData }) {
           ["Current state", d.state],
           ["Trajectory", d.trend],
           ["Confidence", d.confidence],
-          ["Data coverage", d.coverage + "%"],
+          [
+            "Data availability",
+            `${d.available_marker_count} of ${d.configured_marker_count} markers`,
+          ],
         ].map(([l, v]) => (
           <div key={l}>
             <span className="eyebrow">{l}</span>
@@ -239,10 +248,14 @@ export function DomainDetail({ d, twin }: { d: RecordData; twin: RecordData }) {
                   {selected.current}
                   <small>{selected.unit}</small>
                 </strong>
-                <Trend trend={selected.trend} />
-                <span className="muted">
-                  Baseline {selected.baseline ?? "not yet established"}
-                </span>
+                <div className="signal-status-stack">
+                  <Badge tone={selected.abnormal ? "amber" : "green"}>
+                    {selected.reference_status}
+                  </Badge>
+                  <span className="muted">
+                    Longitudinal trend: {selected.trend}. {selected.longitudinal_status}.
+                  </span>
+                </div>
               </div>
             )}
             <HistoryChart signals={selected ? [selected] : d.signals} large />

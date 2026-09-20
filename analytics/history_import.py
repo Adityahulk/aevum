@@ -73,16 +73,14 @@ def parse_history(bundle, artifact=""):
         try:
             if raw.get("specimen") == "urine":
                 raise ValueError("Urine result retained without blood-assay normalization")
-            if re.search(r"c.reactive", raw["name"], re.I) and not re.search(
-                r"high|hs", raw["name"], re.I
-            ):
-                raise ValueError("Ordinary CRP is not a high-sensitivity assay")
             code = ALIASES.get(raw["name"]) or normalize_concept(raw["name"])
             unit = str(raw["unit"]).replace("µ", "u").replace("μ", "u")
             if code == "INSULIN" and unit == "uU/mL":
                 unit = "uIU/mL"
-            if code in {"WBC", "PLATELETS"} and unit == "10^3/uL":
+            if code in {"WBC", "PLATELETS", "ANC", "ALC", "AMC", "AEC", "ABC"} and unit == "10^3/uL":
                 unit = "10^9/L"
+            if code == "RBC" and unit == "10^6/cu.mm":
+                unit = "10^6/uL"
             original = raw["source_kind"] == "original_lab"
             locator = f"{raw['source_sha256']}:{raw.get('source_page', raw.get('source_line', i))}:{raw['name']}"
             r = normalized_row(

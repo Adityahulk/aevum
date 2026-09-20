@@ -56,8 +56,8 @@ def test_all_qualified_unknown_and_missing_unit_results_survive():
         b["measurements"].append(row)
     result = parse_history(b)
     assert len(result["measurements"]) == 5
-    assert len(result["rows"]) == 1
-    assert len(result["retained"]) == 4
+    assert len(result["rows"]) == 2
+    assert len(result["retained"]) == 3
     assert result["measurements"][1]["value"] == ">2000"
 
 
@@ -83,10 +83,52 @@ def test_missing_historical_answer_timestamp_rejected():
         parse_history(b)
 
 
-def test_ordinary_crp_never_becomes_hscrp():
-    with pytest.raises(ValueError):
-        normalize_concept("CRP")
+def test_ordinary_crp_is_distinct_from_hscrp():
+    assert normalize_concept("CRP") == "CRP"
     assert normalize_concept("hs-CRP") == "HSCRP"
+
+
+def test_expanded_blood_panel_concepts_keep_identity_and_units():
+    b = bundle()
+    b["measurements"] = []
+    for name, value, unit in [
+        ("RBC", "5.25", "10^6/cu.mm"),
+        ("Cholesterol- VLDL", "11", "mg/dl"),
+        ("C-Reactive Protein (Quantitative)", "1.1", "mg/L"),
+        ("Thyroid Stimulating Hormone -", "2.064", "µIU/mL"),
+        ("Vitamin D (25-OH)", "15", "ng/mL"),
+    ]:
+        row = copy.deepcopy(bundle()["measurements"][0])
+        row.update(name=name, value=value, unit=unit, source_kind="original_lab")
+        b["measurements"].append(row)
+    result = parse_history(b)
+    assert [row["concept_id"] for row in result["rows"]] == [
+        "RBC",
+        "VLDL",
+        "CRP",
+        "TSH",
+        "VITAMIN_D",
+    ]
+    assert result["retained"] == []
+
+
+def test_reference_status_and_coverage_are_not_a_health_score():
+    b = bundle()
+    b["measurements"][0].update(
+        source_kind="original_lab",
+        reference_low=60,
+        reference_high=120,
+        date="2026-09-01",
+    )
+    row = parse_history(b)["rows"][0]
+    row.update(id="synthetic", quality_status="verified")
+    result = compute({"observations": [row], "now": "2026-09-20T00:00:00+00:00"})
+    feature = result["features"]["APOB"]
+    domain = next(d for d in result["domains"] if d["id"] == "metabolic")
+    assert feature["reference_status"] == "Within source interval"
+    assert feature["trend"] == "Insufficient data"
+    assert domain["coverage_explanation"] == "Availability of configured markers; not a health score"
+    assert domain["available_marker_count"] == 1
 
 
 def test_one_time_point_is_not_stable_trajectory():

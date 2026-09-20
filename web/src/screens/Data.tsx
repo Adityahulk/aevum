@@ -35,7 +35,8 @@ export function DataPage() {
     [providerId, setProviderId] = useState(
       new URLSearchParams(window.location.search).get("connected") || "oura",
     ),
-    [draft, setDraft] = useState<any>(null);
+    [draft, setDraft] = useState<any>(null),
+    [historical, setHistorical] = useState<RecordData[]>([]);
   useEffect(() => {
     api("/wearables/providers")
       .then((result) => {
@@ -50,15 +51,69 @@ export function DataPage() {
         setError("Wearable connections could not be loaded. Please refresh."),
       );
   }, [state]);
+  useEffect(() => {
+    api("/historical-imports")
+      .then(setHistorical)
+      .catch((error) => setError(error.message));
+  }, [state, setError]);
   const provider = providers.find((p) => p.id === providerId);
-  const rows = state.observations
+  const confirmedHistory = historical.filter((record) => record.status === "confirmed");
+  const historyArtifactIds = new Set(
+    confirmedHistory.map((record) => String(record.artifact_id)),
+  );
+  const observationsBySourceRecord = new Map(
+    state.observations.map((observation: RecordData) => [
+      observation.source_record_id,
+      observation,
+    ]),
+  );
+  const archivedRows = confirmedHistory.flatMap((archive) => {
+    const parsedBySource = new Map(
+      (archive.rows || []).map((row: RecordData) => [row.source_record_id, row]),
+    );
+    return (archive.measurements || []).map((measurement: RecordData, index: number) => {
+      const locator = `${measurement.source_sha256}:${measurement.source_page ?? measurement.source_line ?? index}:${measurement.name}`;
+      const parsed = parsedBySource.get(locator) as RecordData | undefined;
+      const observation = observationsBySourceRecord.get(locator) as RecordData | undefined;
+      return {
+        id: `historical-${archive.id}-${index}`,
+        label: measurement.name,
+        concept_id: parsed?.concept_id || "SOURCE_RECORD",
+        value: measurement.value,
+        unit: measurement.unit,
+        effective_time: measurement.date,
+        reference_range: {
+          low: measurement.reference_low,
+          high: measurement.reference_high,
+        },
+        provenance_id: archive.artifact_id,
+        source:
+          measurement.source_kind === "original_lab"
+            ? "lab_pdf"
+            : "historical_table",
+        modeled: Boolean(parsed),
+        observation,
+        historical: true,
+      };
+    });
+  });
+  const baseRows =
+    tab === "Wearables"
+      ? state.observations.filter((o: RecordData) => isWearable(o.source))
+      : [
+          ...archivedRows,
+          ...state.observations.filter(
+            (o: RecordData) =>
+              !isWearable(o.source) && !historyArtifactIds.has(String(o.provenance_id)),
+          ),
+        ];
+  const rows = baseRows
     .filter(
       (o: RecordData) =>
-        (tab === "Wearables" ? isWearable(o.source) : !isWearable(o.source)) &&
-        (!query ||
+        !query ||
           (o.label + " " + o.concept_id)
             .toLowerCase()
-            .includes(query.toLowerCase())),
+            .includes(query.toLowerCase()),
     )
     .sort((a: RecordData, b: RecordData) =>
       b.effective_time.localeCompare(a.effective_time),
@@ -102,7 +157,9 @@ export function DataPage() {
             <h3>Bloodwork</h3>
             <p>
               {
-                state.artifacts.filter((a: RecordData) => a.kind === "labs")
+                state.artifacts.filter((a: RecordData) =>
+                  ["labs", "history"].includes(a.kind),
+                )
                   .length
               }{" "}
               source documents
@@ -306,7 +363,9 @@ export function DataPage() {
                 />
               </label>
               <span className="muted text-small">
-                {rows.length} verified results
+                {tab === "Bloodwork"
+                  ? `${rows.length} source results · ${rows.filter((row: RecordData) => row.modeled !== false).length} used in the Twin`
+                  : `${rows.length} verified results`}
               </span>
               <button
                 className="text-button"
@@ -334,6 +393,11 @@ export function DataPage() {
                       <td>
                         <strong>{o.label}</strong>
                         <small>{o.concept_id}</small>
+                        {o.historical && (
+                          <Badge tone={o.modeled ? "green" : "amber"}>
+                            {o.modeled ? "Used in Twin" : "Preserved source result"}
+                          </Badge>
+                        )}
                       </td>
                       <td>
                         {o.value} <span className="muted">{o.unit}</span>
@@ -360,14 +424,26 @@ export function DataPage() {
                         )}
                       </td>
                       <td>
-                        <button
-                          className="text-button"
-                          onClick={() =>
-                            setModal({ type: "manual", observation: o })
-                          }
-                        >
-                          Correct
-                        </button>
+                        {o.observation || !o.historical ? (
+                          <button
+                            className="text-button"
+                            onClick={() =>
+                              setModal({
+                                type: "manual",
+                                observation: o.observation || o,
+                              })
+                            }
+                          >
+                            Correct
+                          </button>
+                        ) : (
+                          <button
+                            className="text-button"
+                            onClick={() => setTab("Historical records")}
+                          >
+                            View archive
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

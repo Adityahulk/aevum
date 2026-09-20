@@ -100,4 +100,59 @@ public class HistoricalImportController {
     store.audit(p, "HistoricalImportConfirmed", id);
     return archive;
   }
+
+  /** Re-runs a confirmed server-owned archive when the curated concept model expands. */
+  @PostMapping("/{id}/reanalyze")
+  @Transactional
+  public synchronized Map<String, Object> reanalyze(@PathVariable String id,
+      HttpServletRequest request) {
+    String p = Api.person(request);
+    auth.require(p, "health");
+    var archive = store.get(p, "historical_import", id);
+    if (!"confirmed".equals(archive.get("status")))
+      throw new Api.Failure(409, "Confirm the historical record before reanalysis.");
+
+    var bundle = new LinkedHashMap<String, Object>();
+    bundle.put("schema_version", "aevum-history-1");
+    bundle.put("client_name", archive.get("client_name"));
+    bundle.put("measurements", archive.getOrDefault("measurements", List.of()));
+    bundle.put("lifestyle", archive.getOrDefault("lifestyle", Map.of()));
+    bundle.put("fresh_review", archive.getOrDefault("fresh_review", Map.of()));
+    var parsed = science.post(
+        "/history/parse", Map.of("bundle", bundle, "artifact_id", archive.get("artifact_id")));
+
+    Set<String> seen = new HashSet<>(), dirty = new HashSet<>();
+    for (var observation : twins.observations(p))
+      seen.add(IngestionController.fingerprint(observation));
+    int added = 0;
+    for (var input : Api.maps(parsed.get("rows"))) {
+      var observation = new LinkedHashMap<>(input);
+      if (seen.add(IngestionController.fingerprint(observation))) {
+        observation.put("id", Store.id());
+        observation.put("quality_status", "verified");
+        store.add(p, "observation", observation);
+        dirty.add(observation.get("concept_id").toString());
+        added++;
+      }
+    }
+
+    archive.put("rows", parsed.get("rows"));
+    archive.put("retained", parsed.get("retained"));
+    archive.put("measurements", parsed.get("measurements"));
+    archive.put("lifestyle", parsed.get("lifestyle"));
+    archive.put("fresh_review", parsed.get("fresh_review"));
+    archive.put("accepted_count", Api.maps(parsed.get("rows")).size());
+    archive.put("reanalyzed_at", java.time.Instant.now().toString());
+    archive.put("new_observations", added);
+    store.replace(p, "historical_import", id, archive);
+
+    var artifact = store.get(p, "artifact", archive.get("artifact_id").toString());
+    artifact.put("accepted_count", Api.maps(parsed.get("rows")).size());
+    store.replace(p, "artifact", artifact.get("id").toString(), artifact);
+    var twin = twins.refresh(p, "Historical records reanalyzed", dirty);
+    archive.put("twin_version", twin.get("version"));
+    store.replace(p, "historical_import", id, archive);
+    store.audit(p, "HistoricalImportReanalyzed", id);
+    return archive;
+  }
 }

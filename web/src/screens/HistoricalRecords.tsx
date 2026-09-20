@@ -211,6 +211,21 @@ export function HistoricalRecords() {
               </Button>
             </>
           )}
+          {selected.status === "confirmed" && (
+            <Button
+              variant="secondary"
+              disabled={busy}
+              onClick={async () => {
+                const result = await run(
+                  () => post(`/historical-imports/${selected.id}/reanalyze`),
+                  "Historical records reanalyzed with the current model",
+                );
+                if (result) choose(result);
+              }}
+            >
+              Reanalyze with current model
+            </Button>
+          )}
         </div>
       )}
     </section>

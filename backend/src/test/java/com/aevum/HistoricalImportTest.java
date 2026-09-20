@@ -96,4 +96,31 @@ class HistoricalImportTest {
     assertTrue(store.list(a.person(),"observation").isEmpty());
     assertEquals("review_required",store.list(a.person(),"historical_import").get(0).get("status"));
   }
+
+  @Test void confirmedArchiveCanBeReanalyzedWithoutDuplicates() throws Exception {
+    var a=account(true);
+    var draft=json(request(a.client(),"POST","/historical-imports/preview",Map.of("synthetic",4)));
+    String base="/historical-imports/"+draft.get("id");
+    assertEquals(200,request(a.client(),"POST",base+"/confirm",
+        Map.of("client_name","Synthetic Client","verified_account_and_sources",true)).statusCode());
+
+    when(science.post(eq("/history/parse"), anyMap())).thenAnswer(x -> {
+      Map<String,Object> input=x.getArgument(1);
+      var first=new LinkedHashMap<String,Object>(Map.of("concept_id","APOB","value",112.0,
+          "unit","mg/dL","effective_time","2026-01-01T00:00:00Z","source","historical_table",
+          "confidence",0.65,"provenance_id",input.get("artifact_id"),"quality_status","review_required"));
+      var second=new LinkedHashMap<String,Object>(Map.of("concept_id","HSCRP","value",0.9,
+          "unit","mg/L","effective_time","2026-01-01T00:00:00Z","source","historical_table",
+          "confidence",0.65,"provenance_id",input.get("artifact_id"),"quality_status","review_required"));
+      return new LinkedHashMap<>(Map.of("client_name","Synthetic Client","status","review_required",
+          "rows",List.of(first,second),"retained",List.of(),
+          "measurements",List.of(Map.of("value",">2000")),
+          "fresh_review",Map.of(),"lifestyle",Map.of("facts",List.of())));
+    });
+    var first=json(request(a.client(),"POST",base+"/reanalyze",null));
+    var second=json(request(a.client(),"POST",base+"/reanalyze",null));
+    assertEquals(2,first.get("accepted_count"));
+    assertEquals(2,store.list(a.person(),"observation").size());
+    assertEquals(0,second.get("new_observations"));
+  }
 }
