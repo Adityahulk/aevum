@@ -285,6 +285,8 @@ def compute(payload):
         else meaningful[0]["trend"]
         if meaningful
         else "Stable"
+        if any(d["trend"] == "Stable" for d in domains)
+        else "Insufficient longitudinal data"
         if any(d["coverage"] for d in domains)
         else "Building your baseline"
     )

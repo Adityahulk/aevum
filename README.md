@@ -81,6 +81,8 @@ The local profile persists encrypted records in H2 and encrypted source files on
 
 ## Input formats
 
+- **Historical records:** complete JSON bundles preserve all source lab results, qualified values, historical questionnaire timestamps and an accompanying informational review. Supported numeric measurements update the Twin; other results remain visible and unscored. See [historical import workflow and schema](docs/HISTORICAL_IMPORTS.md). Private client bundles must never be committed to this repository.
+
 - **Labs:** text-based PDF or CSV. CSV columns: `biomarker,value,unit,date,reference_low,reference_high`. See [the CSV template](fixtures/lab-template.csv). Dates must be ISO `YYYY-MM-DD`. Ambiguous extraction is never silently accepted. Scanned/complex PDFs fall back to source review and manual entry; OCR is not silently simulated.
 - **Wearable:** Open Wearables syncs produce reviewable imports. Oura v2 JSON exports, Apple Health XML/ZIP and the daily wearable CSV template remain supported. Steps, sleep, resting heart rate and RMSSD HRV retain provider provenance; SDNN is not interpreted as RMSSD. See [integration and native companion setup](docs/OPEN_WEARABLES.md).
 - **Genotype:** `# build 37` or `# build 38`, then `rsID chromosome position genotype`. Build-specific coordinates are retained; no unvalidated liftover is performed. The first annotation panel is intentionally narrow: SLCO1B1 medication context requiring confirmation. Raw variants are stored separately and never sent to the language model.

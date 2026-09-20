@@ -67,7 +67,7 @@ CONCEPTS = {
         ["inflammatory"],
         -1,
         [0.01, 500],
-        ["hs-crp", "high sensitivity crp", "crp"],
+        ["hs-crp", "high sensitivity crp"],
     ),
     "SBP": (
         "Systolic blood pressure",

@@ -22,6 +22,7 @@ import { api, post, date, RecordData } from "../api";
 import { Badge, Button, Empty, SectionTitle, Modal } from "../components";
 import { useApp } from "../context";
 import { isWearable, WearableProvider } from "../wearables";
+import { HistoricalRecords } from "./HistoricalRecords";
 export function DataPage() {
   const { state, me, route, go, setModal, run, busy, setError } = useApp();
   const [tab, setTab] = useState(
@@ -151,6 +152,7 @@ export function DataPage() {
           "Wearables",
           "Genetics",
           "Personal context",
+          "Historical records",
           "Source documents",
         ].map((t) => (
           <button
@@ -481,6 +483,7 @@ export function DataPage() {
           )}
         </>
       )}
+      {tab === "Historical records" && <HistoricalRecords />}
       {tab === "Personal context" && (
         <div className="two-columns">
           <section className="card context-card">

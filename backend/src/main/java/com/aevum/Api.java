@@ -408,6 +408,7 @@ class IdentityController {
             "lifestyle_fact",
             "family_history",
             "medical_context",
+            "historical_import",
             "consent",
             "observation",
             "artifact",

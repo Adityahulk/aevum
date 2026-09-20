@@ -14,6 +14,7 @@ from catalog import (
 from engine import compute, evaluate, rank
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from history_import import parse_history
 from ingestion import normalized_row, parse_upload
 from retrieval import corpus, embed, search
 
@@ -72,6 +73,11 @@ def validate(p: dict):
             for r in p["rows"]
         ]
     }
+
+
+@app.post("/history/parse")
+def historical_import(p: dict):
+    return parse_history(p["bundle"], p.get("artifact_id", ""))
 
 
 @app.post("/compute")
