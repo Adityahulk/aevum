@@ -97,3 +97,17 @@ def test_one_time_point_is_not_stable_trajectory():
     result = compute({"observations": [row], "now": "2026-09-20T00:00:00+00:00"})
     assert result["overall_trajectory"] == "Insufficient longitudinal data"
     assert result["features"]["APOB"]["trend"] == "Insufficient data"
+
+
+def test_model_version_invalidates_old_snapshot_and_cached_domains(monkeypatch):
+    import engine
+
+    payload = {"observations": [], "now": "2026-09-20T00:00:00+00:00"}
+    before = compute(payload)
+    monkeypatch.setattr(engine, "MODEL_VERSION", "test-next-version")
+    before["domains"][0]["state"] = "obsolete-cached-value"
+    after = compute(
+        {**payload, "previous": before, "dirty_concepts": ["HSCRP"], "reuse_unaffected": True}
+    )
+    assert before["input_snapshot"] != after["input_snapshot"]
+    assert after["domains"][0]["state"] != "obsolete-cached-value"

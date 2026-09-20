@@ -179,6 +179,7 @@ def compute(payload):
             and did in previous_domains
             and not dirty.intersection(codes)
             and payload.get("reuse_unaffected", False)
+            and previous.get("model_version") == MODEL_VERSION
         ):
             domains.append(previous_domains[did])
             continue
@@ -321,6 +322,7 @@ def compute(payload):
     snapshot = hashlib.sha256(
         json.dumps(
             {
+                "model_version": MODEL_VERSION,
                 "obs": payload.get("observations", []),
                 "profile": payload.get("profile", {}),
                 "experiments": payload.get("experiments", []),

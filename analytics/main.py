@@ -9,6 +9,7 @@ from catalog import (
     HALLMARKS,
     INTERVENTIONS,
     KNOWLEDGE_ONLY,
+    MODEL_VERSION,
     RELATIONSHIPS,
 )
 from engine import compute, evaluate, rank
@@ -41,7 +42,7 @@ async def invalid(request, exc):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "model": "interpretable-0.1.0"}
+    return {"status": "ok", "model": MODEL_VERSION}
 
 
 @app.get("/catalog")
