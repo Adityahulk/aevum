@@ -3,6 +3,8 @@
 import json
 import os
 
+from catalog import MODEL_VERSION
+
 
 def public_catalog(factory):
     url = os.getenv("REDIS_URL")
@@ -12,7 +14,7 @@ def public_catalog(factory):
         import redis
 
         r = redis.Redis.from_url(url, socket_connect_timeout=1, socket_timeout=1)
-        key = "aevum:public-catalog:curated-2026-09-v1"
+        key = f"aevum:public-catalog:curated-2026-09-v1:{MODEL_VERSION}"
         cached = r.get(key)
         if cached:
             return json.loads(cached)
