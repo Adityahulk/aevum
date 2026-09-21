@@ -9,10 +9,6 @@ import {
   Zap,
   Moon,
   Dumbbell,
-  Droplets,
-  FlaskConical,
-  TestTube2,
-  Apple,
 } from "lucide-react";
 export const domainIcons: Record<string, any> = {
   metabolic: Leaf,
@@ -25,10 +21,6 @@ export const domainIcons: Record<string, any> = {
   epigenetic: Dna,
   cognitive: Sparkles,
   immune: ShieldCheck,
-  hematology: Droplets,
-  liver: FlaskConical,
-  kidney: TestTube2,
-  nutrition: Apple,
 };
 export const goals = [
   "Longevity",

@@ -188,6 +188,9 @@ def compute(payload):
     previous_domains = {d["id"]: d for d in previous.get("domains", [])}
     for did, name, subtitle, phenotype in DOMAINS:
         codes = [c for c, v in CONCEPTS.items() if did in v[2]]
+        # Optional ontology domains appear only when directly relevant data exists.
+        if did in {"epigenetic", "cognitive", "immune"} and not any(c in fs for c in codes):
+            continue
         if (
             dirty
             and did in previous_domains
@@ -316,6 +319,7 @@ def compute(payload):
             )
             for f in fs.values()
             if f["trend"] in ("Improving", "Worsening")
+            and any(f in d["signals"] for d in domains)
         ],
         key=lambda f: abs(f["personal_change_pct"] or 0),
         reverse=True,

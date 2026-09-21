@@ -49,6 +49,7 @@ def health():
 def catalog():
     return public_catalog(
         lambda: {
+            "model_version": MODEL_VERSION,
             "concepts": [
                 {"id": k, "name": v[0], "unit": v[1], "domains": v[2]} for k, v in CONCEPTS.items()
             ],

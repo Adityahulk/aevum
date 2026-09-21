@@ -96,3 +96,18 @@ test("complete historical import preserves answers, qualified results and proven
   expect(record.lifestyle.collected_at).toBe("2026-01-02T12:00:00Z");
   expect(errors).toEqual([]);
 });
+
+
+test("Twin and Biology retain the focused MVP domain structure", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Explore a sample Twin" }).click();
+  await expect(page.getByRole("heading", { name: "Your biology, in perspective." })).toBeVisible();
+  await page.goto("/#twin");
+  await expect(page.locator(".twin-domain")).toHaveCount(7);
+  for (const name of ["Hematology", "Liver context", "Kidney context", "Nutritional & endocrine context", "Immune context", "Cognitive context", "Molecular aging"]) {
+    await expect(page.getByRole("heading", {name, exact: true})).toHaveCount(0);
+  }
+  await page.goto("/#biology/liver");
+  await expect(page.locator(".biology-map h2")).not.toHaveText("Liver context");
+  await expect(page.locator(".graph-layers")).toBeVisible();
+});

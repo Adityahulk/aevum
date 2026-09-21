@@ -364,7 +364,7 @@ export function DataPage() {
               </label>
               <span className="muted text-small">
                 {tab === "Bloodwork"
-                  ? `${rows.length} source results · ${rows.filter((row: RecordData) => row.modeled !== false).length} used in the Twin`
+                  ? `${rows.length} source results · ${rows.filter((row: RecordData) => row.modeled !== false).length} verified measurements`
                   : `${rows.length} verified results`}
               </span>
               <button
@@ -395,7 +395,7 @@ export function DataPage() {
                         <small>{o.concept_id}</small>
                         {o.historical && (
                           <Badge tone={o.modeled ? "green" : "amber"}>
-                            {o.modeled ? "Used in Twin" : "Preserved source result"}
+                            {o.modeled ? "Verified measurement" : "Preserved source result"}
                           </Badge>
                         )}
                       </td>

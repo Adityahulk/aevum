@@ -36,3 +36,8 @@ The PDFs do not provide validated scoring coefficients, a deployable reference-r
 All six engineering phases have been implemented. The application and source are available for local review, with phase-specific scientific, backend, browser and accessibility tests. See `VERIFICATION.md` for exact results and explicit release gates. External credentials, Docker runtime verification, calibrated scientific coefficients and clinical validation remain dependencies; the software does not invent them.
 
 An initial synthetic workspace demonstrates the complete loop. Real accounts begin empty, with explicit consent and source review. The application is named **Aevum** as an editable working product name; no trademark availability is claimed.
+
+
+### MVP scope correction (2026-09-21)
+
+The end-user specification section 11 defines the focused domain set. Keep metabolic, cardiovascular, inflammatory, musculoskeletal, functional, recovery and body composition as the core interface. Molecular and cognitive contexts require relevant measurements; immune remains an optional ontology context. Laboratory panels must not automatically become new product domains. Hematology, liver, kidney and nutrition results stay in My Data; supported markers feed existing domains only through explicit mappings. Import completeness and domain membership are separate concerns. Saved Twins upgrade on model-version changes.

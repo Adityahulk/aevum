@@ -88,7 +88,11 @@ public class TwinService {
 
   public Map<String, Object> current(String p) {
     var t = store.latest(p, "twin");
-    return t.isEmpty() ? refresh(p, "Your Twin begins", Set.of()) : t;
+    if (t.isEmpty()) return refresh(p, "Your Twin begins", Set.of());
+    var model = science.catalog().get("model_version");
+    if (model != null && !Objects.equals(model, t.get("model_version")))
+      return refresh(p, "Scientific model updated", Set.of());
+    return t;
   }
 
   public Map<String, Object> ranked(String p) {

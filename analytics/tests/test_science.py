@@ -525,3 +525,22 @@ def test_conflicting_genotype_calls_do_not_create_a_finding():
         b"# build 37\nrs4149056 12 21331549 CC\nrs4149056 12 21331549 TT\nrs9 1 200 AA", "raw"
     )
     assert r["errors"] and not r["findings"]
+
+
+def test_supplementary_lab_results_do_not_expand_mvp_domains():
+    from catalog import CONCEPTS
+    rows = []
+    for code, value in [("ALT", 17), ("CREATININE", 0.9), ("HEMOGLOBIN", 14), ("VITAMIN_D", 24), ("CORTISOL_AM", 12), ("APOB", 90)]:
+        rows.append(normalized_row({"concept_id": code, "value": value,
+            "unit": CONCEPTS[code][1], "effective_time": NOW.isoformat()}, "lab_csv", "test", True))
+    twin = model(rows)
+    assert [d["id"] for d in twin["domains"]] == [
+        "metabolic", "cardiovascular", "inflammatory", "recovery",
+        "musculoskeletal", "functional", "body"]
+    assert len(twin["features"]) == len(rows)
+    assert not next(d for d in twin["domains"] if d["id"] == "musculoskeletal")["signals"]
+    assert not next(d for d in twin["domains"] if d["id"] == "recovery")["signals"]
+    previous = {**twin, "model_version": "interpretable-0.2.0",
+        "domains": twin["domains"] + [{"id": "liver", "signals": []}]}
+    updated = model(rows, previous=previous, dirty_concepts=["APOB"], reuse_unaffected=True)
+    assert "liver" not in {d["id"] for d in updated["domains"]}
