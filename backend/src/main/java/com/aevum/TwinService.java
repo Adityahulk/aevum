@@ -35,6 +35,23 @@ public class TwinService {
     out.put("observations", observations(p));
     out.put("profile", store.latest(p, "profile"));
     out.put("experiments", store.list(p, "experiment"));
+    var facts = new ArrayList<Map<String, Object>>();
+    for (var archive : store.list(p, "historical_import")) {
+      if (!"confirmed".equals(archive.get("status"))) continue;
+      var lifestyle = Api.map(archive.get("lifestyle"));
+      for (var fact : Api.maps(lifestyle.get("facts"))) {
+        var dated = new LinkedHashMap<String, Object>(fact);
+        dated.put("collected_at", lifestyle.get("collected_at"));
+        facts.add(dated);
+      }
+    }
+    out.put("lifestyle_facts", facts);
+    boolean genomicConsent = auth.consent(p, "genomics");
+    out.put("genomic_findings", genomicConsent ? store.list(p, "genomic_finding") : List.of());
+    long samples = genomicConsent ? store.list(p, "import").stream()
+        .filter(a -> "genomics".equals(a.get("kind")) && "confirmed".equals(a.get("status"))).count() : 0;
+    out.put("genomic_status", Map.of("enabled", genomicConsent, "sample_count", samples,
+        "annotation_scope", "Curated SLCO1B1 medication context only; other variants are not interpreted."));
     return out;
   }
 
@@ -210,6 +227,10 @@ class TwinController {
     String p = Api.person(r);
     auth.require(p, "health");
     var t = s.get(p, "twin", id);
+    if (!auth.consent(p, "genomics") && Api.maps(t.get("domains")).stream()
+        .anyMatch(d -> !Api.maps(d.get("genomic_context")).isEmpty()
+            || ((Number) Api.map(d.get("genomic_status")).getOrDefault("sample_count", 0)).longValue() > 0))
+      throw new Api.Failure(403, "This historical version includes genomic context. Restore genomic consent to inspect it.");
     if (!auth.consent(p, "wearable")
         && Api.map(t.get("features")).values().stream()
             .anyMatch(f -> Wearables.isWearable(Api.map(f).get("source"))))

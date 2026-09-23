@@ -330,7 +330,7 @@ class IdentityController {
                 + " kind LIKE 'wearable:%')",
             p);
       }
-      if (auth.consent(p, "health") && (scope.equals("wearable") || scope.equals("health")))
+      if (auth.consent(p, "health") && (scope.equals("wearable") || scope.equals("health") || scope.equals("genomics")))
         twins.refresh(p, "Processing permissions updated", Set.of());
       return c;
     }

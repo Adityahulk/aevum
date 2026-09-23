@@ -110,4 +110,36 @@ test("Twin and Biology retain the focused MVP domain structure", async ({ page }
   await page.goto("/#biology/liver");
   await expect(page.locator(".biology-map h2")).not.toHaveText("Liver context");
   await expect(page.locator(".graph-layers")).toBeVisible();
+  await expect(page.locator(".tabs button")).toHaveCount(7);
+  for (const name of ["Recovery & resilience", "Muscle & strength", "Functional fitness", "Body composition"]) {
+    await page.locator(".tabs").getByRole("button", {name, exact: true}).click();
+    await expect(page.locator(".biology-map h2")).toHaveText(name);
+    await expect(page.getByRole("heading", {name: "Your data in this domain"})).toBeVisible();
+  }
+});
+
+
+test("unmeasured Biology domains show missing groups and supporting context", async ({page}) => {
+  await page.route("**/api/state", async route => {
+    const response = await route.fetch();
+    if (!response.ok()) return route.fulfill({response});
+    const state = await response.json();
+    const recovery = state.twin.domains.find((d: any) => d.id === "recovery");
+    recovery.signals = []; recovery.phenotype = null; recovery.context_count = 1;
+    recovery.coverage = 0; recovery.available_group_count = 0;
+    recovery.coverage_groups.forEach((g: any) => {g.covered = false; g.available = [];});
+    recovery.lifestyle_context = [{label: "Sleep duration", value: "6 hours", date: "2024-01-01", source: "Historical questionnaire"}];
+    state.twin.relationships = state.twin.relationships.filter((r: any) => r.domain !== "recovery");
+    await route.fulfill({response, json: state});
+  });
+  await page.goto("/");
+  await page.getByRole("button", {name: "Explore a sample Twin"}).click();
+  await expect(page.getByRole("heading", {name: "Your biology, in perspective."})).toBeVisible();
+  await page.goto("/#biology/recovery");
+  await expect(page.locator(".tabs button")).toHaveCount(7);
+  await expect(page.getByText("Supporting context available; direct measurements needed")).toBeVisible();
+  await expect(page.getByText("Missing / outdated", {exact: true})).toHaveCount(3);
+  await page.getByText("1 relevant answers · view source context").click();
+  await expect(page.getByText("6 hours", {exact: true})).toBeVisible();
+  await expect(page.getByText("Historical questionnaire", {exact: false})).toBeVisible();
 });

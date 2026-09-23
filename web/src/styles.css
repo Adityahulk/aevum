@@ -4092,3 +4092,13 @@ input[type="checkbox"] {
   background: #60784f;
   border-color: #60784f;
 }
+
+.domain-evidence { margin-top: 24px; padding: 28px; }
+.domain-evidence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; margin-top: 22px; }
+.domain-evidence-grid > div { min-width: 0; }
+.evidence-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 0; border-bottom: 1px solid #e6eae6; overflow-wrap: anywhere; }
+.evidence-group small, .evidence-group > span:not(.badge) { flex-basis: 100%; }
+.evidence-group small { color: #697576; }
+.domain-evidence details summary { cursor: pointer; padding: 12px 0; }
+.domain-evidence-grid > div > small { display: block; margin-top: 12px; }
+@media (max-width: 760px) { .domain-evidence-grid { grid-template-columns: 1fr; } .domain-evidence { padding: 20px; } }

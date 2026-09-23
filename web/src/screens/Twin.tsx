@@ -18,6 +18,7 @@ import {
   HistoryChart,
 } from "../components";
 import { useApp } from "../context";
+import { DomainEvidence } from "../DomainEvidence";
 import { domainIcons } from "../config";
 export function TwinPage() {
   const { state, route, go, setModal, run, busy } = useApp();
@@ -114,9 +115,9 @@ export function TwinPage() {
               </div>
               <div className="coverage">
                 <div>
-                  <span>Data availability</span>
+                  <span>Measurement coverage</span>
                   <span>
-                    {d.available_marker_count} of {d.configured_marker_count} markers
+                    {d.available_group_count ?? d.available_marker_count} of {d.configured_group_count ?? d.configured_marker_count} groups
                   </span>
                 </div>
                 <div
@@ -125,11 +126,11 @@ export function TwinPage() {
                 >
                   <span style={{ width: d.coverage + "%" }} />
                 </div>
-                <small className="coverage-note">Availability, not a health score</small>
+                <small className="coverage-note">Core measurement groups · not a health score</small>
               </div>
               <div className="row between text-small muted">
                 <span>{d.confidence} confidence</span>
-                <span>{d.signals.length} signals</span>
+                <span>{d.signals.length} direct · {d.context_count || 0} context</span>
               </div>
             </button>
           );
@@ -201,8 +202,8 @@ export function DomainDetail({ d, twin }: { d: RecordData; twin: RecordData }) {
           ["Trajectory", d.trend],
           ["Confidence", d.confidence],
           [
-            "Data availability",
-            `${d.available_marker_count} of ${d.configured_marker_count} markers`,
+            "Measurement coverage",
+            `${d.available_group_count ?? d.available_marker_count} of ${d.configured_group_count ?? d.configured_marker_count} groups`,
           ],
         ].map(([l, v]) => (
           <div key={l}>
@@ -211,6 +212,7 @@ export function DomainDetail({ d, twin }: { d: RecordData; twin: RecordData }) {
           </div>
         ))}
       </div>
+      <DomainEvidence domain={d} />
       {!d.signals.length ? (
         <Empty
           title="We don’t have the full picture yet"

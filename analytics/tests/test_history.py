@@ -127,7 +127,8 @@ def test_reference_status_and_coverage_are_not_a_health_score():
     domain = next(d for d in result["domains"] if d["id"] == "metabolic")
     assert feature["reference_status"] == "Within source interval"
     assert feature["trend"] == "Insufficient data"
-    assert domain["coverage_explanation"] == "Availability of configured markers; not a health score"
+    assert "supporting context and DNA do not count" in domain["coverage_explanation"]
+    assert domain["available_group_count"] == 1
     assert domain["available_marker_count"] == 1
 
 

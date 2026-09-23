@@ -544,3 +544,56 @@ def test_supplementary_lab_results_do_not_expand_mvp_domains():
         "domains": twin["domains"] + [{"id": "liver", "signals": []}]}
     updated = model(rows, previous=previous, dirty_concepts=["APOB"], reuse_unaffected=True)
     assert "liver" not in {d["id"] for d in updated["domains"]}
+
+
+def test_context_fills_evidence_but_not_direct_measurement_coverage():
+    from catalog import CONCEPTS
+    rows = [normalized_row({"concept_id": c, "value": value, "unit": CONCEPTS[c][1],
+        "effective_time": NOW.isoformat(), "id": c}, "lab_csv", "source", True)
+        for c, value in [("VITAMIN_D", 24), ("HEMOGLOBIN", 14), ("FERRITIN", 40)]]
+    twin = model(rows, lifestyle_facts=[{"source_pointer": "/sleep_recovery/total_sleep_hours_estimated",
+        "value": 6, "collected_at": "2024-01-01"}, {"source_pointer": "/body_medical/weight_kg", "value": 70}],
+        genomic_findings=[{"rsid": "rs4149056", "gene": "SLCO1B1"}],
+        genomic_status={"enabled": True, "sample_count": 1})
+    for did in ("recovery", "musculoskeletal", "functional", "body"):
+        d = dom(twin, did)
+        assert d["context_count"] > 0
+        assert d["coverage"] == 0
+        assert d["state"] == "Supporting context only"
+        assert not d["phenotype"]
+    assert dom(twin, "recovery")["lifestyle_context"][0]["date"] == "2024-01-01"
+    assert dom(twin, "musculoskeletal")["genomic_context"]
+    assert not dom(twin, "metabolic")["genomic_context"]
+    changed = model(rows, previous=twin, dirty_concepts=["APOB"], reuse_unaffected=True)
+    assert not dom(changed, "musculoskeletal")["genomic_context"]
+    assert not dom(changed, "body")["lifestyle_context"]
+
+
+def test_correlated_lipid_markers_do_not_inflate_coverage():
+    one = model([obs("APOB", 100)])
+    many = model([obs("APOB", 100), obs("LDL", 100), obs("NON_HDL", 130)])
+    assert dom(one, "cardiovascular")["coverage"] == dom(many, "cardiovascular")["coverage"] == 25
+    assert dom(many, "cardiovascular")["available_group_count"] == 1
+    assert len(dom(many, "cardiovascular")["signals"]) == 3
+
+
+def test_wearable_device_change_cannot_create_a_false_baseline():
+    older = obs("HRV", 70, days=10, source="ow:oura")
+    newer = obs("HRV", 30, days=0, source="ow:oura")
+    older.update(device_name="old ring", measurement_method="RMSSD")
+    newer.update(device_name="new ring", measurement_method="RMSSD")
+    twin = model([older, newer])
+    assert twin["features"]["HRV"]["baseline"] is None
+    assert twin["features"]["HRV"]["device_name"] == "new ring"
+    assert dom(twin, "recovery")["available_group_count"] == 1
+
+
+def test_blood_wearable_and_dna_remain_distinct_in_one_twin():
+    twin = model([obs("APOB", 105), obs("RHR", 60, source="ow:oura")],
+        genomic_findings=[{"rsid": "rs4149056", "gene": "SLCO1B1"}],
+        genomic_status={"enabled": True, "sample_count": 1})
+    cardio = dom(twin, "cardiovascular")
+    assert {s["source"] for s in cardio["signals"]} == {"lab_csv", "ow:oura"}
+    assert cardio["available_group_count"] == 2
+    assert len(cardio["genomic_context"]) == 1
+    assert dom(twin, "musculoskeletal")["available_group_count"] == 0

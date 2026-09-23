@@ -12,12 +12,11 @@ import {
 } from "lucide-react";
 import { date, RecordData } from "../api";
 import { Badge, Button, Empty, SectionTitle } from "../components";
+import { DomainEvidence } from "../DomainEvidence";
 import { useApp } from "../context";
 export function BiologyPage() {
   const { state, catalog, route, go, setModal } = useApp();
-  const measuredDomains = state.twin.domains.filter(
-    (domain: RecordData) => domain.signals.length > 0,
-  );
+  const measuredDomains = state.twin.domains;
   const requested = route.split("/")[1];
   const selected = measuredDomains.some((domain: RecordData) => domain.id === requested)
     ? requested
@@ -224,6 +223,7 @@ export function BiologyPage() {
                 )}
               </div>
             </div>
+            {d.signals.length > 5 && <p className="muted text-small">Showing five measurements in the map. All {d.signals.length} are listed in the domain data below.</p>}
             <div className="graph-legend">
               <span>
                 <i className="solid-line" />
@@ -237,11 +237,12 @@ export function BiologyPage() {
             </div>
           </>
         ) : (
-          <Empty title="No measured domain yet">
-            Add validated measurements to build an evidence-linked biology map.
+          <Empty title={d?.context_count ? "Supporting context available; direct measurements needed" : "Direct measurements needed"}>
+            Review the data and missing measurements below. A biological mechanism cannot be inferred from supporting context alone.
           </Empty>
         )}
       </section>
+      {d && <DomainEvidence domain={d} />}
       {node && (
         <section className="card node-detail">
           <div className="row between">

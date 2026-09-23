@@ -19,4 +19,23 @@ class TwinModelUpgradeTest {
     assertEquals(current, service.current("person"));
     verify(service, times(1)).refresh("person", "Scientific model updated", Set.of());
   }
+  @Test void contextPayloadHonorsGenomicConsentAndPreservesQuestionnaireDate() {
+    var store = mock(Store.class);
+    var auth = mock(Auth.class);
+    var service = new TwinService(store, mock(Science.class), auth);
+    when(store.list("person", "historical_import")).thenReturn(List.of(Map.of(
+        "status", "confirmed", "lifestyle", Map.of("collected_at", "2024-01-01",
+        "facts", List.of(Map.of("source_pointer", "/sleep_schedule", "value", "historical answer"))))));
+    when(store.list("person", "genomic_finding")).thenReturn(List.of(Map.of("rsid", "rs4149056")));
+    when(store.list("person", "import")).thenReturn(List.of(Map.of("kind", "genomics", "status", "confirmed")));
+    var denied = service.payload("person");
+    assertEquals(List.of(), denied.get("genomic_findings"));
+    assertEquals("2024-01-01", Api.maps(denied.get("lifestyle_facts")).get(0).get("collected_at"));
+    verify(store, never()).list("person", "genomic_finding");
+    when(auth.consent("person", "genomics")).thenReturn(true);
+    var allowed = service.payload("person");
+    assertEquals(1, Api.maps(allowed.get("genomic_findings")).size());
+    assertEquals(1L, Api.map(allowed.get("genomic_status")).get("sample_count"));
+    verify(store, never()).list("person", "variant");
+  }
 }

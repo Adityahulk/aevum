@@ -4,6 +4,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from statistics import mean, median, pstdev
 from wearables import is_wearable
+from domain_evidence import domain_evidence, CONTEXT_LABS
 
 from catalog import (
     CONCEPTS,
@@ -68,9 +69,12 @@ def features(observations, now):
     out = {}
     for code, obs in grouped.items():
         # Different devices/methods cannot form a single personal baseline.
-        latest_source = max(obs, key=when)["source"]
-        if is_wearable(latest_source):
-            obs = [o for o in obs if o["source"] == latest_source]
+        latest_observation = max(obs, key=when)
+        latest_source = latest_observation["source"]
+        if any(is_wearable(o["source"]) for o in obs):
+            obs = [o for o in obs if o["source"] == latest_source
+                   and o.get("device_name", "") == latest_observation.get("device_name", "")
+                   and o.get("measurement_method", "") == latest_observation.get("measurement_method", "")]
         # A sample/day contributes once, so duplicate providers cannot inflate confidence.
         by_day = {}
         for o in sorted(obs, key=when):
@@ -158,6 +162,8 @@ def features(observations, now):
             "quality": round(quality, 2),
             "observation_ids": [o["id"] for o in recent],
             "source": current["source"],
+            "device_name": current.get("device_name", ""),
+            "measurement_method": current.get("measurement_method", ""),
             "reference_range": current.get("reference_range"),
             "history": [
                 {"date": o["effective_time"], "value": o["value"], "id": o["id"]} for o in recent
@@ -182,6 +188,8 @@ def compute(payload):
         payload.get("now", datetime.now(timezone.utc).isoformat()).replace("Z", "+00:00")
     )
     fs = features(payload.get("observations", []), now)
+    context_snapshot = hashlib.sha256(json.dumps({k: payload.get(k) for k in
+        ("profile", "lifestyle_facts", "genomic_findings", "genomic_status")}, sort_keys=True).encode()).hexdigest()
     domains = []
     previous = payload.get("previous") or {}
     dirty = set(payload.get("dirty_concepts", []))
@@ -194,7 +202,8 @@ def compute(payload):
         if (
             dirty
             and did in previous_domains
-            and not dirty.intersection(codes)
+            and not dirty.intersection(codes + [c for c, _, _ in CONTEXT_LABS.get(did, [])])
+            and previous.get("context_snapshot") == context_snapshot
             and payload.get("reuse_unaffected", False)
             and previous.get("model_version") == MODEL_VERSION
         ):
@@ -202,7 +211,8 @@ def compute(payload):
             continue
         signals = [fs[c] for c in codes if c in fs]
         fresh = [f for f in signals if not f["stale"]]
-        coverage = round(len(fresh) / len(codes) * 100) if codes else 0
+        evidence = domain_evidence(did, fs, payload)
+        coverage = round(evidence["available_group_count"] / evidence["configured_group_count"] * 100) if evidence["configured_group_count"] else 0
         concerning = [f for f in fresh if f["abnormal"] or f["trend"] == "Worsening"]
         improving = [f for f in fresh if f["trend"] == "Improving"]
         worsening = [f for f in fresh if f["trend"] == "Worsening"]
@@ -216,7 +226,9 @@ def compute(payload):
             )
         ]
         state = (
-            "Insufficient data"
+            "Supporting context only"
+            if not fresh and evidence["context_count"]
+            else "Insufficient data"
             if not fresh
             else "Elevated concern"
             if len(concerning) >= 3
@@ -267,7 +279,8 @@ def compute(payload):
             "coverage": coverage,
             "available_marker_count": len(fresh),
             "configured_marker_count": len(codes),
-            "coverage_explanation": "Availability of configured markers; not a health score",
+            "coverage_explanation": "Coverage of core measurement groups. Related markers count together; supporting context and DNA do not count as direct measurements.",
+            **evidence,
             "signals": signals,
             "supporting_observation_ids": list(
                 dict.fromkeys(o for f in signals for o in f["observation_ids"])
@@ -346,6 +359,7 @@ def compute(payload):
                 "model_version": MODEL_VERSION,
                 "obs": payload.get("observations", []),
                 "profile": payload.get("profile", {}),
+                "context_snapshot": context_snapshot,
                 "experiments": payload.get("experiments", []),
             },
             sort_keys=True,
@@ -353,6 +367,7 @@ def compute(payload):
     ).hexdigest()
     return {
         "domains": domains,
+        "context_snapshot": context_snapshot,
         "features": fs,
         "priorities": [d["id"] for d in priorities],
         "overall_trajectory": overall,

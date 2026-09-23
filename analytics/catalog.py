@@ -1,6 +1,6 @@
 """Versioned curated research catalog. Reference intervals come from source labs, not this catalog."""
 
-MODEL_VERSION = "interpretable-0.2.1"
+MODEL_VERSION = "interpretable-0.3.0"
 ONTOLOGY_VERSION = "hallmarks-2023-v1"
 EVIDENCE_VERSION = "curated-2026-09-v1"
 # concept: label, canonical unit, domain membership, favorable direction, plausibility bounds, aliases
