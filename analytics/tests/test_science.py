@@ -597,3 +597,10 @@ def test_blood_wearable_and_dna_remain_distinct_in_one_twin():
     assert cardio["available_group_count"] == 2
     assert len(cardio["genomic_context"]) == 1
     assert dom(twin, "musculoskeletal")["available_group_count"] == 0
+
+
+def test_context_contract_change_invalidates_rollout_snapshot():
+    old = model([obs()], context_schema=0)
+    new = model([obs()], context_schema=1)
+    assert old["input_snapshot"] != new["input_snapshot"]
+    assert new["context_schema"] == 1

@@ -11,7 +11,7 @@ class TwinModelUpgradeTest {
     var science = mock(Science.class);
     var service = spy(new TwinService(store, science, mock(Auth.class)));
     Map<String,Object> old = Map.of("model_version", "interpretable-0.2.0");
-    Map<String,Object> current = Map.of("model_version", "interpretable-0.2.1");
+    Map<String,Object> current = Map.of("model_version", "interpretable-0.2.1", "context_schema", 1);
     when(store.latest("person", "twin")).thenReturn(old, current);
     when(science.catalog()).thenReturn(Map.of("model_version", "interpretable-0.2.1"));
     doReturn(current).when(service).refresh("person", "Scientific model updated", Set.of());

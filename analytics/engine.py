@@ -360,6 +360,7 @@ def compute(payload):
                 "obs": payload.get("observations", []),
                 "profile": payload.get("profile", {}),
                 "context_snapshot": context_snapshot,
+                "context_schema": payload.get("context_schema", 0),
                 "experiments": payload.get("experiments", []),
             },
             sort_keys=True,
@@ -368,6 +369,7 @@ def compute(payload):
     return {
         "domains": domains,
         "context_snapshot": context_snapshot,
+        "context_schema": payload.get("context_schema", 0),
         "features": fs,
         "priorities": [d["id"] for d in priorities],
         "overall_trajectory": overall,

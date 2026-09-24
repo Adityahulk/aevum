@@ -33,6 +33,7 @@ public class TwinService {
   public Map<String, Object> payload(String p) {
     Map<String, Object> out = new LinkedHashMap<>();
     out.put("observations", observations(p));
+    out.put("context_schema", 1);
     out.put("profile", store.latest(p, "profile"));
     out.put("experiments", store.list(p, "experiment"));
     var facts = new ArrayList<Map<String, Object>>();
@@ -107,7 +108,8 @@ public class TwinService {
     var t = store.latest(p, "twin");
     if (t.isEmpty()) return refresh(p, "Your Twin begins", Set.of());
     var model = science.catalog().get("model_version");
-    if (model != null && !Objects.equals(model, t.get("model_version")))
+    if (model != null && (!Objects.equals(model, t.get("model_version"))
+        || !Objects.equals(1, t.get("context_schema"))))
       return refresh(p, "Scientific model updated", Set.of());
     return t;
   }
