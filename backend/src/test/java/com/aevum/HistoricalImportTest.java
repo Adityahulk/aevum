@@ -123,4 +123,12 @@ class HistoricalImportTest {
     assertEquals(2,store.list(a.person(),"observation").size());
     assertEquals(0,second.get("new_observations"));
   }
+
+  @Test void originalLabAndHistoricalTranscriptionDoNotDoubleCountTheSameSpecimen() {
+    var transcription = new LinkedHashMap<String,Object>(Map.of("concept_id","APOB","value",112.0,
+        "unit","mg/dL","effective_time","2026-01-01T00:00:00Z","source","historical_table"));
+    var original = new LinkedHashMap<>(transcription);
+    original.put("source", "lab_pdf");
+    assertEquals(IngestionController.fingerprint(transcription), IngestionController.fingerprint(original));
+  }
 }

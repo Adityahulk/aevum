@@ -186,15 +186,16 @@ public class IngestionController {
   }
 
   static String fingerprint(Map<String, Object> o) {
+    // A transcription and its original lab PDF can describe the same specimen.
+    // Source provenance remains on each record, but it must not create a second
+    // clinical observation or inflate evidence coverage.
     return o.get("concept_id")
         + "|"
         + o.get("effective_time")
         + "|"
         + Double.parseDouble(o.get("value").toString())
         + "|"
-        + o.get("unit")
-        + "|"
-        + o.get("source");
+        + o.get("unit");
   }
 
   @org.springframework.transaction.annotation.Transactional
