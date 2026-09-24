@@ -112,6 +112,26 @@ def test_expanded_blood_panel_concepts_keep_identity_and_units():
     assert result["retained"] == []
 
 
+def test_common_secondary_report_variants_are_normalized_without_guessing_egfr():
+    b = bundle()
+    b["measurements"] = []
+    for name, value, unit in [
+        ("Red Blood Cells", "5.06", "10^6/cumm"),
+        ("Hematocrit (HCT)", "44", "%"),
+        ("TSH (ultrasensitive)", "1.634", "uIU/mL"),
+        ("Folate (B9)", "8", "ng/mL"),
+        ("Immunoglobulin E (Total)", "247", "IU/mL"),
+        ("eGFR", "101", "mL/min"),
+    ]:
+        row = copy.deepcopy(bundle()["measurements"][0])
+        row.update(name=name, value=value, unit=unit)
+        b["measurements"].append(row)
+    result = parse_history(b)
+    assert {r["concept_id"] for r in result["rows"]} == {"RBC", "HCT", "TSH", "FOLATE", "IGE"}
+    assert len(result["retained"]) == 1
+    assert "mL/min" in result["retained"][0]["reason"]
+
+
 def test_reference_status_and_coverage_are_not_a_health_score():
     b = bundle()
     b["measurements"][0].update(

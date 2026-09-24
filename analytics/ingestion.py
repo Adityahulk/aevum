@@ -40,6 +40,7 @@ def normalized_row(row, source="lab_csv", provenance_id="", reviewed=False):
             ("APOB", "g/l"): 100,
             ("RBC", "10^6/cu.mm"): 1,
             ("RBC", "mili/cu.mm"): 1,
+            ("RBC", "10^6/cumm"): 1,
             ("INSULIN", "uu/ml"): 1,
             ("WBC", "10^3/ul"): 1,
             ("PLATELETS", "10^3/ul"): 1,
