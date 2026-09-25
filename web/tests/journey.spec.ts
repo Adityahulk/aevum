@@ -203,14 +203,17 @@ test("genotype review, private source ownership, consent revocation and empty ge
 test("mobile navigation and every screen fit the viewport", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
   await demo(page);
+  await page.setViewportSize({ width: 390, height: 844 });
   for (const route of [
     "home",
     "twin",
+    "twin/recovery",
     "biology",
     "interventions",
+    "interventions/active",
     "ai",
+    "you",
     "data",
     "settings",
   ]) {
@@ -222,9 +225,20 @@ test("mobile navigation and every screen fit the viewport", async ({
       ),
     ).toBe(true);
   }
-  await page.getByRole("button", { name: "Open navigation" }).click();
-  await page.getByRole("link", { name: "My Twin", exact: true }).click();
+  const tabs = page.getByRole("navigation", { name: "Primary" });
+  await tabs.getByRole("link", { name: "Twin", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Your Biological Twin", exact: true }),
+  ).toBeVisible();
+  await tabs.getByRole("link", { name: "Today", exact: true }).click();
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: /^Good (morning|afternoon|evening)/,
+    }),
+  ).toBeVisible();
+  await tabs.getByRole("link", { name: "You", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "You", exact: true }),
   ).toBeVisible();
 });
