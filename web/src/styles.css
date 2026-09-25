@@ -444,6 +444,7 @@ a svg {
 .main-shell {
   margin-left: var(--sidebar);
   width: calc(100% - var(--sidebar));
+  min-width: 0;
 }
 .topbar {
   height: 69px;
@@ -487,6 +488,7 @@ a svg {
   max-width: 1580px;
   padding: 20px 37px 0;
   margin: auto;
+  min-width: 0;
 }
 .demo-banner {
   border: 1px solid #e7eadf;
@@ -2383,6 +2385,8 @@ dd {
 .settings-section {
   padding: 27px;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin-bottom: 22px;
 }
 .settings-form .settings-section {
@@ -2402,18 +2406,25 @@ dd {
   justify-content: space-between;
   padding: 23px 0;
   border-bottom: 1px solid var(--line);
+  min-width: 0;
 }
 .privacy-row:last-child {
   border: 0;
 }
+.privacy-row > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
 .privacy-row strong {
   font-size: 12px;
   color: #5d695b;
+  overflow-wrap: anywhere;
 }
 .privacy-row p {
   font-size: 11px;
   max-width: 650px;
   margin-top: 7px;
+  overflow-wrap: anywhere;
 }
 .toggle {
   border: 0;
@@ -2519,25 +2530,37 @@ input[type="checkbox"] {
   font-size: 10px;
   line-height: 1.7;
   color: #5e6a57;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 .consent-option {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  column-gap: 12px;
   padding: 19px;
   border: 1px solid #e4ebdc;
   border-radius: 8px;
   background: #fafcf7;
   font-size: 12px;
   line-height: 1.7;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 .consent-option > input {
   margin-top: 3px;
 }
+.consent-option > span {
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
 .consent-option strong {
   font-size: 12px;
   display: block;
+  overflow-wrap: break-word;
 }
 .consent-option small {
   font-size: 10px;
@@ -2545,6 +2568,7 @@ input[type="checkbox"] {
   color: #60695a;
   line-height: 1.8;
   margin-top: 5px;
+  overflow-wrap: break-word;
 }
 .form-error {
   color: #975549 !important;
@@ -3368,6 +3392,7 @@ input[type="checkbox"] {
   .main-shell {
     margin-left: 0;
     width: 100%;
+    max-width: 100%;
   }
   .mobile-menu {
     display: flex;
@@ -3381,6 +3406,7 @@ input[type="checkbox"] {
   }
   .main-content {
     padding: 15px 17px 0;
+    max-width: 100%;
   }
   .demo-banner {
     padding: 9px 10px;
@@ -3783,7 +3809,8 @@ input[type="checkbox"] {
     flex-wrap: wrap;
   }
   .privacy-row > span {
-    flex: 1;
+    flex: 1 1 180px;
+    min-width: 0;
   }
   .privacy-row strong {
     font-size: 12px;
@@ -3795,10 +3822,15 @@ input[type="checkbox"] {
     font-size: 10px;
   }
   .form-grid {
-    gap: 0 14px;
+    grid-template-columns: 1fr;
+    gap: 0;
   }
   .form-grid label {
     font-size: 10px;
+  }
+  .consent-option {
+    padding: 16px;
+    column-gap: 10px;
   }
   .settings-section {
     padding: 20px;

@@ -2,7 +2,7 @@ import re
 import uuid
 
 from catalog import CONCEPTS, EVIDENCE, MODEL_VERSION
-from llm import route
+from llm import configured_provider, route
 from retrieval import search
 
 
@@ -13,6 +13,7 @@ def answer(payload):
     profile = payload.get("profile", {})
     selected = payload.get("domain")
     routed = route(q)
+    provider = configured_provider()
     if routed:
         selected = selected or routed["domain"]
         if routed["tool"] == "get_interventions":
@@ -123,7 +124,15 @@ def answer(payload):
             + ". Claims rendered from authoritative structured data."
         )
         if routed
-        else "Deterministic explanations from your structured model; external routing is unavailable or unconfigured.",
+        else (
+            "External routing is configured ("
+            + provider["provider"]
+            + "/"
+            + provider["model"]
+            + ") but the provider call failed or returned an invalid tool; using the deterministic guide."
+            if provider
+            else "Deterministic explanations from your structured model; external routing is unavailable or unconfigured."
+        ),
         "retrieval_tool": routed["tool"] if routed else "get_domain",
         "related_evidence_ids": [e["id"] for e in search(q, 3)],
         "domain": d["id"],
