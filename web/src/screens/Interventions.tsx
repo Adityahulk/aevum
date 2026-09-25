@@ -17,11 +17,19 @@ import {
 import { api, post, date, RecordData } from "../api";
 import { Badge, Button, Empty, Modal } from "../components";
 import { useApp } from "../context";
+import { CheckInSheet, ExperimentProgressCard, useIsMobile } from "../mobile";
 export function InterventionsPage() {
   const { state, me, route, go, run, busy, setModal } = useApp();
-  const tab = route.split("/")[1] || "recommended";
-  const [selected, setSelected] = useState<RecordData | null>(null),
-    [experiment, setExperiment] = useState<RecordData | null>(null);
+  const mobile = useIsMobile();
+  const [, segment, planId] = route.split("/");
+  const tab = segment === "plan" ? "recommended" : segment || "recommended";
+  const [selected, setSelected] = useState<RecordData | null>(() =>
+      segment === "plan"
+        ? state.recommendations.find((r: RecordData) => r.id === planId) || null
+        : null,
+    ),
+    [experiment, setExperiment] = useState<RecordData | null>(null),
+    [checkIn, setCheckIn] = useState<RecordData | null>(null);
   const active = state.experiments.filter(
     (e: RecordData) => !["Evaluated", "Stopped"].includes(e.status),
   );
@@ -65,13 +73,15 @@ export function InterventionsPage() {
           className={tab === "recommended" ? "active" : ""}
           onClick={() => go("interventions")}
         >
-          Recommended <span>{state.recommendations.length}</span>
+          {mobile ? "Suggested" : "Recommended"}{" "}
+          <span>{state.recommendations.length}</span>
         </button>
         <button
           className={tab === "active" ? "active" : ""}
           onClick={() => go("interventions/active")}
         >
-          Active experiments <span>{active.length}</span>
+          {mobile ? "Active" : "Active experiments"}{" "}
+          <span>{active.length}</span>
         </button>
         <button
           className={tab === "history" ? "active" : ""}
@@ -198,50 +208,61 @@ export function InterventionsPage() {
         </>
       ) : (
         <div className="experiment-grid">
-          {(tab === "active" ? active : history).map((e: RecordData) => (
-            <article className="card experiment-card" key={e.id}>
-              <div className="row between">
-                <span className="domain-icon">
-                  <FlaskConical size={22} />
-                </span>
-                <Badge
-                  tone={
-                    e.response?.outcome === "Favorable" ? "green" : "purple"
-                  }
-                >
-                  {e.response?.outcome || e.status}
-                </Badge>
-              </div>
-              <h2>{e.name}</h2>
-              <p>
-                {e.planned_duration_weeks}-week experiment · Started{" "}
-                {date(e.start_date)}
-              </p>
-              <div className="row between text-small">
-                <span>Reported adherence</span>
-                <strong>{e.adherence}%</strong>
-              </div>
-              <div className="progress-track">
-                <span style={{ width: e.adherence + "%" }} />
-              </div>
-              <div className="experiment-targets">
-                {Object.keys(e.baseline).map((c: string) => (
-                  <span key={c}>
-                    {c.replace("VO2MAX", "VO₂ max")}
-                    <strong>{e.baseline[c].value}</strong>
-                    <small>baseline</small>
+          {(tab === "active" ? active : history).map((e: RecordData) =>
+            mobile && tab === "active" ? (
+              <ExperimentProgressCard
+                key={e.id}
+                e={e}
+                onCheckIn={() => setCheckIn(e)}
+                onOpen={() => setExperiment(e)}
+              />
+            ) : (
+              <article className="card experiment-card" key={e.id}>
+                <div className="row between">
+                  <span className="domain-icon">
+                    <FlaskConical size={22} />
                   </span>
-                ))}
-              </div>
-              {e.response && (
-                <p className="response-summary">{e.response.interpretation}</p>
-              )}
-              <Button variant="secondary" onClick={() => setExperiment(e)}>
-                {e.response ? "Review response" : "Open experiment"}
-                <ArrowRight size={16} />
-              </Button>
-            </article>
-          ))}
+                  <Badge
+                    tone={
+                      e.response?.outcome === "Favorable" ? "green" : "purple"
+                    }
+                  >
+                    {e.response?.outcome || e.status}
+                  </Badge>
+                </div>
+                <h2>{e.name}</h2>
+                <p>
+                  {e.planned_duration_weeks}-week experiment · Started{" "}
+                  {date(e.start_date)}
+                </p>
+                <div className="row between text-small">
+                  <span>Reported adherence</span>
+                  <strong>{e.adherence}%</strong>
+                </div>
+                <div className="progress-track">
+                  <span style={{ width: e.adherence + "%" }} />
+                </div>
+                <div className="experiment-targets">
+                  {Object.keys(e.baseline).map((c: string) => (
+                    <span key={c}>
+                      {c.replace("VO2MAX", "VO₂ max")}
+                      <strong>{e.baseline[c].value}</strong>
+                      <small>baseline</small>
+                    </span>
+                  ))}
+                </div>
+                {e.response && (
+                  <p className="response-summary">
+                    {e.response.interpretation}
+                  </p>
+                )}
+                <Button variant="secondary" onClick={() => setExperiment(e)}>
+                  {e.response ? "Review response" : "Open experiment"}
+                  <ArrowRight size={16} />
+                </Button>
+              </article>
+            ),
+          )}
           {!(tab === "active" ? active : history).length && (
             <Empty
               title={
@@ -362,6 +383,15 @@ export function InterventionsPage() {
             experiment
           }
           onClose={() => setExperiment(null)}
+        />
+      )}
+      {checkIn && (
+        <CheckInSheet
+          e={
+            state.experiments.find((e: RecordData) => e.id === checkIn.id) ||
+            checkIn
+          }
+          onClose={() => setCheckIn(null)}
         />
       )}
     </>

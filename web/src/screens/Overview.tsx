@@ -23,7 +23,12 @@ import {
 } from "../components";
 import { useApp } from "../context";
 import { domainIcons } from "../config";
+import { MobileToday, useIsMobile } from "../mobile";
 export function HomePage() {
+  const mobile = useIsMobile();
+  return mobile ? <MobileToday /> : <DesktopHome />;
+}
+function DesktopHome() {
   const { state, go, setModal, me } = useApp();
   const t = state.twin;
   const priorities = t.priorities.map((id: string) =>

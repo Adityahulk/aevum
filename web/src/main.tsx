@@ -37,6 +37,7 @@ import { InterventionsPage } from "./screens/Interventions";
 import { AIPage } from "./screens/Guide";
 import { DataPage, UploadModal, MeasurementModal } from "./screens/Data";
 import { SettingsPage } from "./screens/Settings";
+import { MobileTabBar, YouPage } from "./mobile";
 import "@fontsource-variable/dm-sans";
 import "@fontsource-variable/manrope";
 import "./styles.css";
@@ -224,10 +225,16 @@ function App() {
               >
                 <Menu size={20} />
               </button>
+              <span className="mobile-brand">
+                <Logo />
+              </span>
               <span className="breadcrumb">Your workspace</span>
-              <ChevronRight size={13} />
-              <span>
-                {navs.find((n) => n[0] === page)?.[1] || "Settings & privacy"}
+              <ChevronRight size={13} className="breadcrumb-separator" />
+              <span className="breadcrumb-current">
+                {page === "you"
+                  ? "You"
+                  : navs.find((n) => n[0] === page)?.[1] ||
+                    "Settings & privacy"}
               </span>
             </div>
             <div className="row topbar-actions">
@@ -296,6 +303,8 @@ function App() {
                   <DataPage />
                 ) : page === "settings" ? (
                   <SettingsPage />
+                ) : page === "you" ? (
+                  <YouPage />
                 ) : (
                   <Empty
                     title="Page not found"
@@ -317,6 +326,7 @@ function App() {
             </footer>
           </main>
         </div>
+        <MobileTabBar page={page} go={go} />
       </div>
       {modal?.type === "upload" && (
         <UploadModal

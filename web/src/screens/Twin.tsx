@@ -20,6 +20,7 @@ import {
 import { useApp } from "../context";
 import { DomainEvidence } from "../DomainEvidence";
 import { domainIcons } from "../config";
+import { PathwayStory, useIsMobile } from "../mobile";
 export function TwinPage() {
   const { state, route, go, setModal, run, busy } = useApp();
   const [historical, setHistorical] = useState<any>(null);
@@ -169,6 +170,7 @@ export function TwinPage() {
 
 export function DomainDetail({ d, twin }: { d: RecordData; twin: RecordData }) {
   const { go, setModal, state } = useApp();
+  const mobile = useIsMobile();
   const Icon = domainIcons[d.id];
   const [signal, setSignal] = useState(d.signals[0]?.concept_id || "");
   const selected = d.signals.find((s: RecordData) => s.concept_id === signal);
@@ -196,6 +198,7 @@ export function DomainDetail({ d, twin }: { d: RecordData; twin: RecordData }) {
           Ask why
         </Button>
       </div>
+      {mobile && twin === state.twin && <PathwayStory d={d} />}
       <div className="domain-metrics card">
         {[
           ["Current state", d.state],
