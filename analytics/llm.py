@@ -9,10 +9,13 @@ a secondary option when OPENAI_API_KEY is unset.
 """
 
 import json
+import logging
 import os
 
 import httpx
 from catalog import DOMAINS
+
+log = logging.getLogger("aevum.llm")
 
 TOOLS = {
     "get_domain": "Explain a biological domain, trajectory, uncertainty or measurements.",
@@ -32,6 +35,17 @@ SYSTEM = (
 DEFAULT_OPENAI_MODEL = "gpt-6-luna"
 
 
+def configured_provider():
+    if os.getenv("OPENAI_API_KEY"):
+        return {
+            "provider": "openai",
+            "model": os.getenv("LLM_MODEL") or DEFAULT_OPENAI_MODEL,
+        }
+    if os.getenv("ANTHROPIC_API_KEY") and os.getenv("LLM_MODEL"):
+        return {"provider": "anthropic", "model": os.getenv("LLM_MODEL")}
+    return None
+
+
 def _domain_schema():
     return {
         "type": "object",
@@ -47,6 +61,18 @@ def _validated(name, domain, model):
     return {"tool": name, "domain": domain, "model": model}
 
 
+def _parse_arguments(raw):
+    if isinstance(raw, dict):
+        return raw
+    if not isinstance(raw, str):
+        return None
+    try:
+        args = json.loads(raw or "{}")
+    except json.JSONDecodeError:
+        return None
+    return args if isinstance(args, dict) else None
+
+
 def _route_openai(question, key, model, transport=None):
     tools = [
         {
@@ -55,7 +81,6 @@ def _route_openai(question, key, model, transport=None):
                 "name": name,
                 "description": description,
                 "parameters": _domain_schema(),
-                "strict": True,
             },
         }
         for name, description in TOOLS.items()
@@ -80,20 +105,40 @@ def _route_openai(question, key, model, transport=None):
                     ],
                 },
             )
-            result.raise_for_status()
+            if result.status_code >= 400:
+                detail = result.text[:300]
+                log.warning(
+                    "OpenAI routing HTTP %s for model %s: %s",
+                    result.status_code,
+                    model,
+                    detail,
+                )
+                return None
             message = result.json()["choices"][0]["message"]
         calls = message.get("tool_calls") or []
         if len(calls) != 1:
+            log.warning(
+                "OpenAI routing returned %s tool calls; expected exactly one",
+                len(calls),
+            )
             return None
-        fn = calls[0].get("function") or {}
-        try:
-            args = json.loads(fn.get("arguments") or "{}")
-        except json.JSONDecodeError:
+        call = calls[0]
+        fn = call.get("function") or call
+        args = _parse_arguments(fn.get("arguments"))
+        if args is None:
+            log.warning("OpenAI routing returned unparseable tool arguments")
             return None
-        if not isinstance(args, dict):
-            return None
-        return _validated(fn.get("name"), args.get("domain"), model)
-    except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError):
+        name = fn.get("name") or call.get("name")
+        chosen = _validated(name, args.get("domain"), model)
+        if not chosen:
+            log.warning(
+                "OpenAI routing selected invalid tool/domain: %s %s",
+                name,
+                args.get("domain"),
+            )
+        return chosen
+    except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
+        log.warning("OpenAI routing failed: %s", exc)
         return None
 
 
@@ -124,14 +169,22 @@ def _route_anthropic(question, key, model, transport=None):
                     "messages": [{"role": "user", "content": question[:2000]}],
                 },
             )
-            result.raise_for_status()
+            if result.status_code >= 400:
+                log.warning(
+                    "Anthropic routing HTTP %s for model %s: %s",
+                    result.status_code,
+                    model,
+                    result.text[:300],
+                )
+                return None
             blocks = result.json().get("content", [])
         chosen = [b for b in blocks if b.get("type") == "tool_use"]
         if len(chosen) != 1:
             return None
         b = chosen[0]
         return _validated(b.get("name"), b.get("input", {}).get("domain"), model)
-    except (httpx.HTTPError, ValueError, KeyError, TypeError):
+    except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+        log.warning("Anthropic routing failed: %s", exc)
         return None
 
 

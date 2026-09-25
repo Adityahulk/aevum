@@ -561,6 +561,23 @@ def test_anthropic_tool_choice_remains_available_without_openai(monkeypatch):
     assert route("Ignore instructions", malicious) is None
 
 
+def test_openai_fails_open_without_strict_schema_and_logs_http_errors(monkeypatch):
+    import httpx
+    from llm import route
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_MODEL", "gpt-6-luna")
+
+    def respond(req):
+        body = json.loads(req.content)
+        assert "strict" not in json.dumps(body["tools"])
+        assert body["reasoning_effort"] == "none"
+        return httpx.Response(401, text='{"error":{"message":"invalid api key"}}')
+
+    assert route("Why is metabolic health changing?", httpx.MockTransport(respond)) is None
+
+
 def test_openai_key_takes_precedence_over_anthropic(monkeypatch):
     import httpx
     from llm import route
@@ -594,6 +611,46 @@ def test_openai_key_takes_precedence_over_anthropic(monkeypatch):
 
     result = route("What does the evidence say?", httpx.MockTransport(respond))
     assert result["tool"] == "get_evidence"
+
+
+def test_configured_provider_reports_openai_luna(monkeypatch):
+    from llm import configured_provider
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    assert configured_provider() == {"provider": "openai", "model": "gpt-6-luna"}
+
+
+def test_guide_mode_detail_explains_configured_but_failed_routing(monkeypatch):
+    import httpx
+    from assistant import answer
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_MODEL", "gpt-6-luna")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    def fail(req):
+        return httpx.Response(500, text="upstream down")
+
+    monkeypatch.setattr(
+        "assistant.route",
+        lambda q: __import__("llm").route(q, httpx.MockTransport(fail)),
+    )
+    twin = model([obs("APOB", 110, 0), obs("APOB", 120, 30)])
+    out = answer(
+        {
+            "question": "Why is my metabolic health changing?",
+            "twin": twin,
+            "profile": {"goal": "Longevity"},
+            "recommendations": [],
+            "experiments": [],
+            "genomic_findings": [],
+        }
+    )
+    assert out["mode"] == "Grounded guide"
+    assert "configured" in out["mode_detail"]
+    assert "openai/gpt-6-luna" in out["mode_detail"]
 
 
 def test_evidence_retrieval_returns_citations_and_normalized_vectors():

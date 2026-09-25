@@ -64,7 +64,7 @@ export function AIPage() {
         </div>
         <Badge tone="purple">
           <span className="status-dot" />
-          Grounded guide
+          {messages[messages.length - 1]?.mode || "Grounded guide"}
         </Badge>
       </div>
       <div className="ai-context-bar">
@@ -115,6 +115,9 @@ export function AIPage() {
                       {m.mode} · {m.claims?.[0]?.confidence} confidence
                     </span>
                   </div>
+                  {m.mode_detail && (
+                    <p className="muted text-small">{m.mode_detail}</p>
+                  )}
                   <p>{m.answer}</p>
                   <div className="claim-sources">
                     <button onClick={() => go("data")}>
