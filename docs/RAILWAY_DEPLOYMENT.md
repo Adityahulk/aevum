@@ -47,8 +47,9 @@ Health check: `/health`
 PORT=8090
 ANALYTICS_SECRET=${{shared.ANALYTICS_SECRET}}
 REDIS_URL=${{Redis.REDIS_URL}}
+OPENAI_API_KEY=
+LLM_MODEL=gpt-6-luna
 ANTHROPIC_API_KEY=
-LLM_MODEL=
 ```
 
 Do not generate a public domain for this service.

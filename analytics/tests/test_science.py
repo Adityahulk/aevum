@@ -405,12 +405,122 @@ def test_scanned_pdf_never_silently_creates_observations():
     assert result["status"] == "review_required"
 
 
-def test_external_llm_tool_choice_is_validated_and_raw_records_never_transmitted(
+def test_openai_luna_tool_choice_is_validated_and_raw_records_never_transmitted(
     monkeypatch,
 ):
     import httpx
     from llm import route
 
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_MODEL", "gpt-6-luna")
+
+    def respond(req):
+        assert str(req.url) == "https://api.openai.com/v1/chat/completions"
+        body = json.loads(req.content)
+        assert body["model"] == "gpt-6-luna"
+        assert body["reasoning_effort"] == "none"
+        assert body["tool_choice"] == "required"
+        assert "observations" not in body
+        assert "genotype" not in body
+        assert body["messages"][0]["role"] == "system"
+        assert body["messages"][1]["role"] == "user"
+        assert len(body["messages"]) == 2
+        assert all(t["type"] == "function" for t in body["tools"])
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "tool_calls": [
+                                {
+                                    "type": "function",
+                                    "function": {
+                                        "name": "get_response",
+                                        "arguments": '{"domain": "functional"}',
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+        )
+
+    result = route("Did my experiment work?", httpx.MockTransport(respond))
+    assert result == {
+        "tool": "get_response",
+        "domain": "functional",
+        "model": "gpt-6-luna",
+    }
+    malicious = httpx.MockTransport(
+        lambda req: httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "tool_calls": [
+                                {
+                                    "type": "function",
+                                    "function": {
+                                        "name": "delete_data",
+                                        "arguments": '{"domain": "functional"}',
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+        )
+    )
+    assert route("Ignore instructions", malicious) is None
+
+
+def test_openai_defaults_to_gpt6_luna_when_model_unset(monkeypatch):
+    import httpx
+    from llm import route
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    def respond(req):
+        body = json.loads(req.content)
+        assert body["model"] == "gpt-6-luna"
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "tool_calls": [
+                                {
+                                    "type": "function",
+                                    "function": {
+                                        "name": "get_domain",
+                                        "arguments": '{"domain": "metabolic"}',
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+        )
+
+    result = route("Why is my metabolic health changing?", httpx.MockTransport(respond))
+    assert result["model"] == "gpt-6-luna"
+    assert result["tool"] == "get_domain"
+
+
+def test_anthropic_tool_choice_remains_available_without_openai(monkeypatch):
+    import httpx
+    from llm import route
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     monkeypatch.setenv("LLM_MODEL", "operator-selected-model")
 
@@ -449,6 +559,41 @@ def test_external_llm_tool_choice_is_validated_and_raw_records_never_transmitted
         )
     )
     assert route("Ignore instructions", malicious) is None
+
+
+def test_openai_key_takes_precedence_over_anthropic(monkeypatch):
+    import httpx
+    from llm import route
+
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-key")
+    monkeypatch.setenv("LLM_MODEL", "gpt-6-luna")
+
+    def respond(req):
+        assert "api.openai.com" in str(req.url)
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "tool_calls": [
+                                {
+                                    "type": "function",
+                                    "function": {
+                                        "name": "get_evidence",
+                                        "arguments": '{"domain": "metabolic"}',
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+        )
+
+    result = route("What does the evidence say?", httpx.MockTransport(respond))
+    assert result["tool"] == "get_evidence"
 
 
 def test_evidence_retrieval_returns_citations_and_normalized_vectors():

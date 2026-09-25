@@ -43,8 +43,9 @@ services:
       PORT: 8090
       ANALYTICS_SECRET: ${ANALYTICS_SECRET:?Set ANALYTICS_SECRET}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gpt-6-luna}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      LLM_MODEL: ${LLM_MODEL:-}
     depends_on:
       redis: {condition: service_healthy}
     healthcheck:
