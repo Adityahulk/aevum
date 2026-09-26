@@ -21,6 +21,7 @@ import { useApp } from "../context";
 import { DomainEvidence } from "../DomainEvidence";
 import { domainIcons } from "../config";
 import { MobileDomainList, PathwayStory, useIsMobile } from "../mobile";
+import { MeasurementCards } from "../MeasurementCards";
 export function TwinPage() {
   const { state, route, go, setModal, run, busy } = useApp();
   const mobile = useIsMobile();
@@ -270,6 +271,12 @@ export function DomainDetail({ d, twin }: { d: RecordData; twin: RecordData }) {
             )}
             <HistoryChart signals={selected ? [selected] : d.signals} large />
           </section>
+          {mobile ? (
+            <section className="m-measures-section">
+              <SectionTitle title="What supports this" />
+              <MeasurementCards signals={d.signals} />
+            </section>
+          ) : (
           <section className="card evidence-table-panel">
             <SectionTitle title="What supports this" />
             <div className="table-scroll">
@@ -315,6 +322,7 @@ export function DomainDetail({ d, twin }: { d: RecordData; twin: RecordData }) {
               </table>
             </div>
           </section>
+          )}
           <div className="two-columns">
             <section className="card interpretation-card">
               <span className="eyebrow">WHAT THE PATTERN SUGGESTS</span>

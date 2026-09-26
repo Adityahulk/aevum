@@ -27,6 +27,7 @@ import { Badge, Button, Modal } from "./components";
 import { useApp } from "./context";
 import { domainIcons } from "./config";
 import { isWearable } from "./wearables";
+import { RangeTrack } from "./MeasurementCards";
 import {
   attentionDomains,
   canAssess,
@@ -708,6 +709,7 @@ export function PathwayStory({ d }: { d: RecordData }) {
                 : `${signal.reference_status}. Measured ${date(signal.latest_date)}.`
               : "Missing data is not interpreted as healthy or unhealthy."}
           </p>
+          {signal && <RangeTrack signal={signal} />}
         </Step>
         {!d.phenotype && !isWithinExpected(d) ? (
           <Step
