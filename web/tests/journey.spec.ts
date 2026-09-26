@@ -303,6 +303,78 @@ test("mobile protocol leads to the active experiment and its evaluation", async 
   const state = await (await page.request.get("/api/state")).json();
   expect(state.experiments.some((e: any) => e.response)).toBe(true);
 });
+test("voice questions are transcribed, answered and read aloud", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    (window as any).__spoken = [];
+    class FakeRecognition {
+      onresult: any;
+      onend: any;
+      onerror: any;
+      start() {
+        setTimeout(() => {
+          this.onresult?.({
+            resultIndex: 0,
+            results: [
+              Object.assign([{ transcript: "Why is my recovery slipping?" }], {
+                isFinal: true,
+              }),
+            ],
+          });
+          this.onend?.();
+        }, 200);
+      }
+      stop() {}
+      abort() {}
+    }
+    (window as any).SpeechRecognition = FakeRecognition;
+    (window as any).webkitSpeechRecognition = FakeRecognition;
+    Object.defineProperty(window, "speechSynthesis", {
+      configurable: true,
+      value: {
+        speak: (u: any) => (window as any).__spoken.push(u.text),
+        cancel: () => {},
+      },
+    });
+    (window as any).SpeechSynthesisUtterance = class {
+      text: string;
+      constructor(text: string) {
+        this.text = text;
+      }
+    };
+  });
+  await demo(page);
+  await page.goto("/#ai");
+  await page.getByRole("button", { name: "Ask by voice" }).click();
+  await expect(
+    page.locator(".user-message", { hasText: "Why is my recovery slipping?" }),
+  ).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => (window as any).__spoken.length))
+    .toBe(1);
+  await expect(page.getByRole("button", { name: "Stop" })).toBeVisible();
+});
+test("mobile domain evidence shows measurements against lab range and baseline", async ({
+  page,
+}) => {
+  await demo(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#twin/metabolic");
+  await expect(
+    page.getByRole("heading", { name: "What supports this" }),
+  ).toBeVisible();
+  const apob = page.locator(".m-measure").filter({ hasText: "ApoB" });
+  await expect(apob).toContainText("Outside lab range");
+  await expect(
+    apob.getByRole("img", { name: /lab range 60–100; your baseline/ }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+});
 test("mobile navigation and every screen fit the viewport", async ({
   page,
 }) => {
