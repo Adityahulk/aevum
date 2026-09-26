@@ -5399,3 +5399,9 @@ p.m-status {
     padding: 6px 10px;
   }
 }
+.m-scope-note {
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}

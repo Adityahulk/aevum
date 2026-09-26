@@ -35,6 +35,9 @@ function DesktopHome() {
   const priorities = t.priorities.map((id: string) =>
     t.domains.find((d: RecordData) => d.id === id),
   );
+  const unmeasuredCount = t.domains.filter(
+    (d: RecordData) => !d.coverage,
+  ).length;
   const alsoWatching = attentionDomains(t).filter(
     (d) => !t.priorities.includes(d.id),
   );
@@ -201,8 +204,11 @@ function DesktopHome() {
               </Button>
             }
           >
-            Your measured systems are within source intervals or your personal
-            baseline. Keep measurements current so new changes are caught early.
+            Your measured systems are within the lab’s range or your personal
+            baseline.
+            {unmeasuredCount > 0 &&
+              ` ${unmeasuredCount} ${unmeasuredCount === 1 ? "system isn’t" : "systems aren’t"} measured yet, so this isn’t a complete picture.`}{" "}
+            Keep measurements current so new changes are caught early.
           </Empty>
         ) : (
           <Empty
