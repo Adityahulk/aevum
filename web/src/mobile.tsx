@@ -17,6 +17,7 @@ import {
   Plus,
   Settings,
   Sparkles,
+  Stethoscope,
   Upload,
   Watch,
   X,
@@ -26,6 +27,12 @@ import { Badge, Button, Modal } from "./components";
 import { useApp } from "./context";
 import { domainIcons } from "./config";
 import { isWearable } from "./wearables";
+import {
+  attentionDomains,
+  experimentsTargeting,
+  isActiveExperiment,
+  suggestionFor,
+} from "./priorities";
 
 const MOBILE_QUERY = "(max-width: 700px)";
 
@@ -208,17 +215,76 @@ function BaselineChart({ signal }: { signal: RecordData }) {
   );
 }
 
+function AttentionStatus({ d }: { d: RecordData }) {
+  const { state, catalog } = useApp();
+  const covering = experimentsTargeting(
+    d.id,
+    state.experiments,
+    catalog?.interventions,
+  );
+  const next = covering.length
+    ? null
+    : suggestionFor(d.id, state.recommendations);
+  return (
+    <div className="m-status-lines">
+      {covering.length > 0 ? (
+        <span className="m-status covered">
+          <Check size={15} />
+          Being addressed · {covering.map((e) => e.name).join(", ")}
+        </span>
+      ) : (
+        <span className="m-status open">
+          <FlaskConical size={15} />
+          {next
+            ? `Not addressed yet · Suggested: ${next.name}`
+            : "Not addressed yet · No matching option yet"}
+        </span>
+      )}
+      {d.severity === "Elevated" && (
+        <span className="m-status clinical">
+          <Stethoscope size={15} />
+          Several signals are outside expected ranges. {d.clinical_significance}
+          .
+        </span>
+      )}
+    </div>
+  );
+}
+
+function AttentionCard({ d, rank }: { d: RecordData; rank: number }) {
+  const { go } = useApp();
+  const signal = topSignal(d);
+  return (
+    <button className="m-card m-attention" onClick={() => go("twin/" + d.id)}>
+      <span className="m-rank" aria-label={`Priority ${rank}`}>
+        {rank}
+      </span>
+      <span className="m-attention-body">
+        <span className="m-attention-head">
+          <strong>{d.name}</strong>
+          <span className="m-badges">
+            {d.severity === "Elevated" && <Badge tone="red">Elevated</Badge>}
+            <Badge tone={trendTone(d.trend)}>{d.trend}</Badge>
+          </span>
+        </span>
+        <small>{signal ? signalSentence(signal) : d.state}</small>
+        <AttentionStatus d={d} />
+      </span>
+      <ChevronRight size={18} className="m-attention-chevron" />
+    </button>
+  );
+}
+
 export function MobileToday() {
-  const { state, me, go, setModal } = useApp();
+  const { state, me, go, setModal, catalog } = useApp();
   const t = state.twin;
   const [checkIn, setCheckIn] = useState<RecordData | null>(null);
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const firstName = me.profile.name?.split(" ")[0];
-  const priority = t.priorities
-    .map((id: string) => t.domains.find((d: RecordData) => d.id === id))
-    .find(Boolean);
+  const attention = attentionDomains(t);
+  const [priority, ...others] = attention;
   const signal = priority && topSignal(priority);
   const pathways: string[] = priority
     ? Array.from(
@@ -229,9 +295,13 @@ export function MobileToday() {
         ),
       )
     : [];
-  const active = state.experiments.find(
-    (e: RecordData) => !["Stopped", "Evaluated"].includes(e.status),
-  );
+  const active = state.experiments.find(isActiveExperiment);
+  const targeted = active
+    ? attention.filter(
+        (d) =>
+          experimentsTargeting(d.id, [active], catalog?.interventions).length,
+      )
+    : [];
   const wearableDate = latest(
     state.observations.filter((o: RecordData) => isWearable(o.source)),
   );
@@ -276,13 +346,23 @@ export function MobileToday() {
           className={"m-card m-priority tone-" + trendTone(priority.trend)}
         >
           <div className="m-row between">
-            <span className="m-eyebrow">Your #1 priority</span>
-            <Badge tone={trendTone(priority.trend)}>{priority.trend}</Badge>
+            <span className="m-eyebrow">
+              {attention.length > 1
+                ? `Priority 1 of ${attention.length}`
+                : "Your #1 priority"}
+            </span>
+            <span className="m-badges">
+              {priority.severity === "Elevated" && (
+                <Badge tone="red">Elevated</Badge>
+              )}
+              <Badge tone={trendTone(priority.trend)}>{priority.trend}</Badge>
+            </span>
           </div>
           <h2>
             {head} <em>{tail}</em>
           </h2>
           <p>{signal ? signalSentence(signal) : priority.subtitle}</p>
+          <AttentionStatus d={priority} />
           {signal && <BaselineChart signal={signal} />}
           {pathways.length > 0 && (
             <>
@@ -298,6 +378,23 @@ export function MobileToday() {
           )}
           <Button className="m-block" onClick={() => go("twin/" + priority.id)}>
             See why this is happening <ArrowRight size={18} />
+          </Button>
+        </section>
+      ) : state.observations.length ? (
+        <section className="m-card m-priority">
+          <div className="m-row between">
+            <span className="m-eyebrow">Your priorities</span>
+            <Badge tone="green">All clear</Badge>
+          </div>
+          <h2>
+            Nothing needs <em>attention right now</em>
+          </h2>
+          <p>
+            Your measured systems are within source intervals or your personal
+            baseline. Keep measurements current so new changes are caught early.
+          </p>
+          <Button className="m-block" onClick={() => go("twin")}>
+            Explore your Twin <ArrowRight size={18} />
           </Button>
         </section>
       ) : (
@@ -320,12 +417,33 @@ export function MobileToday() {
         </section>
       )}
 
+      {others.length > 0 && (
+        <>
+          <div className="m-section-head">
+            <h2>Also needs attention</h2>
+            <span className="m-count">{others.length}</span>
+          </div>
+          <div className="m-attention-list">
+            {others.map((d, i) => (
+              <AttentionCard key={d.id} d={d} rank={i + 2} />
+            ))}
+          </div>
+        </>
+      )}
+
       <div className="m-section-head">
         <h2>Your protocol</h2>
         <button className="m-link" onClick={() => go("interventions")}>
           All options <ChevronRight size={16} />
         </button>
       </div>
+      {active && attention.length > 0 && (
+        <p className="m-coverage-note">
+          {targeted.length
+            ? `Targets ${targeted.length} of your ${attention.length} priorities: ${targeted.map((d) => d.name).join(", ")}.`
+            : `Doesn’t target your current ${attention.length === 1 ? "priority" : "priorities"} directly.`}
+        </p>
+      )}
       {active ? (
         <ExperimentProgressCard
           e={active}
@@ -448,9 +566,17 @@ export function PathwayStory({ d }: { d: RecordData }) {
   const rec =
     matches.find((r: RecordData) => r.eligible && !r.blocked_reasons.length) ||
     matches[0];
+  const attention = attentionDomains(state.twin);
+  const rank = attention.findIndex((x) => x.id === d.id) + 1;
+  const covering = experimentsTargeting(
+    d.id,
+    state.experiments,
+    catalog.interventions,
+  );
   return (
     <section className="m-story" aria-label="From your data to what can help">
       <p className="m-story-intro">
+        {rank ? `Priority ${rank} of ${attention.length} · ` : ""}
         From your data to what can move it · 5 steps
       </p>
       <ol>
@@ -550,6 +676,13 @@ export function PathwayStory({ d }: { d: RecordData }) {
           </p>
           {rec?.review_required && (
             <Badge tone="amber">Professional review</Badge>
+          )}
+          {covering.length > 0 && !rec?.already_active && (
+            <p className="m-status covered">
+              <Check size={15} />
+              Also targeted by your active experiment:{" "}
+              {covering.map((e) => e.name).join(", ")}
+            </p>
           )}
           <Button
             className="m-block"

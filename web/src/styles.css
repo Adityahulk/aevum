@@ -5055,3 +5055,122 @@ button.m-card {
 .m-menu strong {
   font-size: 16px;
 }
+.attention-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.m-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.m-count {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 14px;
+  background: #fbf3e9;
+  color: #8a5f2e;
+  font-size: 14px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.m-status-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+.m-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+.m-status svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.m-status.covered {
+  color: #4f6b58;
+}
+.m-status.open {
+  color: #8a5f2e;
+}
+.m-status.clinical {
+  color: #9a4b41;
+  font-weight: 500;
+}
+p.m-status {
+  margin: 10px 0 0;
+}
+.m-attention-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.m-attention {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+}
+.m-rank {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid #e4d6c3;
+  color: #8a5f2e;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.m-attention-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.m-attention-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.m-attention-head strong {
+  font-size: 16px;
+  line-height: 1.3;
+}
+.m-attention-body > small {
+  font-size: 14px;
+  line-height: 1.45;
+  color: #4a5550;
+}
+.m-attention .m-status-lines {
+  margin-top: 6px;
+}
+.m-attention-chevron {
+  flex-shrink: 0;
+  margin-top: 6px;
+  color: #8b948e;
+}
+.m-coverage-note {
+  font-size: 14px;
+  line-height: 1.45;
+  color: #4a5550;
+  margin: -2px 0 10px;
+}
