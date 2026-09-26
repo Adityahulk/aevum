@@ -200,17 +200,67 @@ test("genotype review, private source ownership, consent revocation and empty ge
   expect(state.observations.some((o: any) => o.source === "oura")).toBe(false);
   expect(state.twin.features.HRV).toBeUndefined();
 });
+test("every concerning domain is surfaced, not only the top three", async ({
+  page,
+}) => {
+  await demo(page);
+  const state = await (await page.request.get("/api/state")).json();
+  const concerning = state.twin.domains.filter(
+    (d: any) => state.twin.priorities.includes(d.id) || d.severity !== "None",
+  );
+  const beyondTop = concerning.filter(
+    (d: any) => !state.twin.priorities.includes(d.id),
+  );
+  for (const d of beyondTop) {
+    await expect(
+      page.getByRole("button", { name: new RegExp(d.name) }).first(),
+    ).toBeVisible();
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#home");
+  await expect(
+    page.getByText(`Priority 1 of ${concerning.length}`),
+  ).toBeVisible();
+  await expect(page.locator(".m-attention")).toHaveCount(concerning.length - 1);
+  for (const d of concerning.slice(1)) {
+    await expect(
+      page.locator(".m-attention").filter({ hasText: d.name }),
+    ).toBeVisible();
+  }
+});
+test("mobile protocol leads to the active experiment and its evaluation", async ({
+  page,
+}) => {
+  await demo(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#home");
+  const tabs = page.getByRole("navigation", { name: "Primary" });
+  await tabs.getByRole("link", { name: "Protocol", exact: true }).click();
+  await expect(page).toHaveURL(/#interventions\/active$/);
+  await tabs.getByRole("link", { name: "Today", exact: true }).click();
+  await page
+    .locator(".m-experiment")
+    .getByRole("button", { name: "See if it worked" })
+    .click();
+  await expect(page).toHaveURL(/#interventions\/experiment\//);
+  await expect(page.getByRole("dialog")).toContainText("DID IT WORK?");
+  const state = await (await page.request.get("/api/state")).json();
+  expect(state.experiments.some((e: any) => e.response)).toBe(true);
+});
 test("mobile navigation and every screen fit the viewport", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
   await demo(page);
+  await page.setViewportSize({ width: 390, height: 844 });
   for (const route of [
     "home",
     "twin",
+    "twin/recovery",
     "biology",
     "interventions",
+    "interventions/active",
     "ai",
+    "you",
     "data",
     "settings",
   ]) {
@@ -222,9 +272,20 @@ test("mobile navigation and every screen fit the viewport", async ({
       ),
     ).toBe(true);
   }
-  await page.getByRole("button", { name: "Open navigation" }).click();
-  await page.getByRole("link", { name: "My Twin", exact: true }).click();
+  const tabs = page.getByRole("navigation", { name: "Primary" });
+  await tabs.getByRole("link", { name: "Twin", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Your Biological Twin", exact: true }),
+  ).toBeVisible();
+  await tabs.getByRole("link", { name: "Today", exact: true }).click();
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: /^Good (morning|afternoon|evening)/,
+    }),
+  ).toBeVisible();
+  await tabs.getByRole("link", { name: "You", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "You", exact: true }),
   ).toBeVisible();
 });

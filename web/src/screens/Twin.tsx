@@ -20,8 +20,10 @@ import {
 import { useApp } from "../context";
 import { DomainEvidence } from "../DomainEvidence";
 import { domainIcons } from "../config";
+import { MobileDomainList, PathwayStory, useIsMobile } from "../mobile";
 export function TwinPage() {
   const { state, route, go, setModal, run, busy } = useApp();
+  const mobile = useIsMobile();
   const [historical, setHistorical] = useState<any>(null);
   const t = historical || state.twin;
   const id = route.split("/")[1],
@@ -90,6 +92,9 @@ export function TwinPage() {
           <small>{date(t.generated_at)}</small>
         </div>
       </div>
+      {mobile ? (
+        <MobileDomainList twin={t} />
+      ) : (
       <div className="twin-domain-grid">
         {t.domains.map((d: RecordData) => {
           const Icon = domainIcons[d.id];
@@ -136,6 +141,7 @@ export function TwinPage() {
           );
         })}
       </div>
+      )}
       <section className="card timeline-section">
         <SectionTitle
           eyebrow="YOUR LONGITUDINAL RECORD"
@@ -169,6 +175,7 @@ export function TwinPage() {
 
 export function DomainDetail({ d, twin }: { d: RecordData; twin: RecordData }) {
   const { go, setModal, state } = useApp();
+  const mobile = useIsMobile();
   const Icon = domainIcons[d.id];
   const [signal, setSignal] = useState(d.signals[0]?.concept_id || "");
   const selected = d.signals.find((s: RecordData) => s.concept_id === signal);
@@ -196,6 +203,7 @@ export function DomainDetail({ d, twin }: { d: RecordData; twin: RecordData }) {
           Ask why
         </Button>
       </div>
+      {mobile && twin === state.twin && <PathwayStory d={d} />}
       <div className="domain-metrics card">
         {[
           ["Current state", d.state],

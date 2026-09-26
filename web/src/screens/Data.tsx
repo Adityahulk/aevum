@@ -23,6 +23,7 @@ import { Badge, Button, Empty, SectionTitle, Modal } from "../components";
 import { useApp } from "../context";
 import { isWearable, WearableProvider } from "../wearables";
 import { HistoricalRecords } from "./HistoricalRecords";
+import { MobileReview, useIsMobile } from "../mobile";
 export function DataPage() {
   const { state, me, route, go, setModal, run, busy, setError } = useApp();
   const [tab, setTab] = useState(
@@ -57,6 +58,9 @@ export function DataPage() {
       .catch((error) => setError(error.message));
   }, [state, setError]);
   const provider = providers.find((p) => p.id === providerId);
+  const labDocumentCount = state.artifacts.filter((a: RecordData) =>
+    ["labs", "history"].includes(a.kind),
+  ).length;
   const confirmedHistory = historical.filter((record) => record.status === "confirmed");
   const historyArtifactIds = new Set(
     confirmedHistory.map((record) => String(record.artifact_id)),
@@ -156,13 +160,8 @@ export function DataPage() {
           <div>
             <h3>Bloodwork</h3>
             <p>
-              {
-                state.artifacts.filter((a: RecordData) =>
-                  ["labs", "history"].includes(a.kind),
-                )
-                  .length
-              }{" "}
-              source documents
+              {labDocumentCount}{" "}
+              {labDocumentCount === 1 ? "source document" : "source documents"}
             </p>
           </div>
           <Upload size={18} />
@@ -855,8 +854,22 @@ export function ReviewModal({
   const [rows, setRows] = useState<RecordData[]>(draft.rows || []),
     [ack, setAck] = useState(false);
   const [checked, setChecked] = useState(false);
+  const mobile = useIsMobile();
+  const [cursor, setCursor] = useState(0);
+  const pendingReview = mobile && draft.kind !== "genomics" && cursor < rows.length;
   const update = (i: number, key: string, value: any) =>
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [key]: value } : r)));
+  const addMissed = () =>
+    setRows((rs) => [
+      ...rs,
+      {
+        concept_id: "APOB",
+        value: "",
+        unit: "mg/dL",
+        effective_time: "",
+        reference_range: { low: null, high: null },
+      },
+    ]);
   return (
     <Modal title="Verify your source data" wide onClose={onClose}>
       <div className="row between">
@@ -879,6 +892,20 @@ export function ReviewModal({
             outside the annotation panel are stored, not interpreted.
           </p>
         </div>
+      ) : mobile ? (
+        <>
+          <MobileReview
+            rows={rows}
+            cursor={cursor}
+            setCursor={setCursor}
+            update={update}
+            remove={(i) => setRows((rs) => rs.filter((_, j) => j !== i))}
+          />
+          <button className="text-button" onClick={addMissed}>
+            <Plus size={15} />
+            Add a missed measurement
+          </button>
+        </>
       ) : (
         <>
           <div className="table-scroll review-table">
@@ -995,21 +1022,7 @@ export function ReviewModal({
               </tbody>
             </table>
           </div>
-          <button
-            className="text-button"
-            onClick={() =>
-              setRows((rs) => [
-                ...rs,
-                {
-                  concept_id: "APOB",
-                  value: "",
-                  unit: "mg/dL",
-                  effective_time: "",
-                  reference_range: { low: null, high: null },
-                },
-              ])
-            }
-          >
+          <button className="text-button" onClick={addMissed}>
             <Plus size={15} />
             Add a missed measurement
           </button>
@@ -1043,8 +1056,15 @@ export function ReviewModal({
           I checked the results, dates and units against the original source.
         </span>
       </label>
+      {pendingReview && (
+        <p className="text-small muted">
+          Review each result to continue · {rows.length - cursor} remaining
+        </p>
+      )}
       <Button
-        disabled={!checked || busy || (!ack && draft.errors?.length > 0)}
+        disabled={
+          !checked || busy || pendingReview || (!ack && draft.errors?.length > 0)
+        }
         onClick={async () => {
           const result = await run(
             () =>

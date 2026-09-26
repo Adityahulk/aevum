@@ -23,11 +23,20 @@ import {
 } from "../components";
 import { useApp } from "../context";
 import { domainIcons } from "../config";
+import { MobileToday, useIsMobile } from "../mobile";
+import { attentionDomains } from "../priorities";
 export function HomePage() {
+  const mobile = useIsMobile();
+  return mobile ? <MobileToday /> : <DesktopHome />;
+}
+function DesktopHome() {
   const { state, go, setModal, me } = useApp();
   const t = state.twin;
   const priorities = t.priorities.map((id: string) =>
     t.domains.find((d: RecordData) => d.id === id),
+  );
+  const alsoWatching = attentionDomains(t).filter(
+    (d) => !t.priorities.includes(d.id),
   );
   const focus = t.domains.filter((d: RecordData) => d.coverage > 0).slice(0, 6);
   const experiments = state.experiments.filter(
@@ -101,7 +110,13 @@ export function HomePage() {
       <section className="section">
         <SectionTitle
           eyebrow="THE SIGNAL, NOT THE NOISE"
-          title="Three things worth knowing"
+          title={
+            priorities.length === 1
+              ? "One thing worth knowing"
+              : priorities.length === 2
+                ? "Two things worth knowing"
+                : "Three things worth knowing"
+          }
           action={
             <button className="text-button" onClick={() => go("twin")}>
               See the full picture <ArrowRight size={15} />
@@ -159,6 +174,18 @@ export function HomePage() {
               );
             })}
           </div>
+        ) : state.observations.length ? (
+          <Empty
+            title="Nothing needs attention right now"
+            action={
+              <Button variant="secondary" onClick={() => go("twin")}>
+                Explore your Twin <ArrowRight size={16} />
+              </Button>
+            }
+          >
+            Your measured systems are within source intervals or your personal
+            baseline. Keep measurements current so new changes are caught early.
+          </Empty>
         ) : (
           <Empty
             title="Let your data tell the story"
@@ -172,6 +199,21 @@ export function HomePage() {
             Your priorities appear when there is enough verified information.
             Start with historical and current bloodwork.
           </Empty>
+        )}
+        {alsoWatching.length > 0 && (
+          <div className="attention-more">
+            <Info size={15} />
+            <span>Also worth watching:</span>
+            {alsoWatching.map((d) => (
+              <button
+                key={d.id}
+                className="text-button"
+                onClick={() => go("twin/" + d.id)}
+              >
+                {d.name} · {d.trend} <ArrowUpRight size={14} />
+              </button>
+            ))}
+          </div>
         )}
       </section>
       <div className="overview-split">
