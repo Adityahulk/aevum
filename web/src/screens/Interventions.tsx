@@ -21,14 +21,29 @@ import { CheckInSheet, ExperimentProgressCard, useIsMobile } from "../mobile";
 export function InterventionsPage() {
   const { state, me, route, go, run, busy, setModal } = useApp();
   const mobile = useIsMobile();
-  const [, segment, planId] = route.split("/");
-  const tab = segment === "plan" ? "recommended" : segment || "recommended";
+  const [, segment, targetId] = route.split("/");
+  const routedExperiment =
+    segment === "experiment"
+      ? state.experiments.find((e: RecordData) => e.id === targetId)
+      : null;
+  const tab =
+    segment === "plan"
+      ? "recommended"
+      : segment === "experiment"
+        ? routedExperiment &&
+          ["Evaluated", "Stopped"].includes(routedExperiment.status)
+          ? "history"
+          : "active"
+        : segment || "recommended";
   const [selected, setSelected] = useState<RecordData | null>(() =>
       segment === "plan"
-        ? state.recommendations.find((r: RecordData) => r.id === planId) || null
+        ? state.recommendations.find((r: RecordData) => r.id === targetId) ||
+          null
         : null,
     ),
-    [experiment, setExperiment] = useState<RecordData | null>(null),
+    [experiment, setExperiment] = useState<RecordData | null>(
+      () => routedExperiment || null,
+    ),
     [checkIn, setCheckIn] = useState<RecordData | null>(null);
   const active = state.experiments.filter(
     (e: RecordData) => !["Evaluated", "Stopped"].includes(e.status),
@@ -169,13 +184,15 @@ export function InterventionsPage() {
                     Explore plan <ArrowUpRight size={16} />
                   </Button>
                   <span>
-                    {r.eligible
-                      ? "Let’s test this, thoughtfully."
-                      : r.blocked_reasons.length
-                        ? "Resolve safety considerations"
-                        : r.review_required
-                          ? "Review before starting"
-                          : "Add baseline measurements"}
+                    {r.already_active
+                      ? "Running now as your active experiment."
+                      : r.eligible
+                        ? "Let’s test this, thoughtfully."
+                        : r.blocked_reasons.length
+                          ? "Resolve safety considerations"
+                          : r.review_required
+                            ? "Review before starting"
+                            : "Add baseline measurements"}
                   </span>
                 </div>
               </article>
@@ -215,6 +232,7 @@ export function InterventionsPage() {
                 e={e}
                 onCheckIn={() => setCheckIn(e)}
                 onOpen={() => setExperiment(e)}
+                onEvaluated={setExperiment}
               />
             ) : (
               <article className="card experiment-card" key={e.id}>

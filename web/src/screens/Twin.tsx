@@ -20,9 +20,10 @@ import {
 import { useApp } from "../context";
 import { DomainEvidence } from "../DomainEvidence";
 import { domainIcons } from "../config";
-import { PathwayStory, useIsMobile } from "../mobile";
+import { MobileDomainList, PathwayStory, useIsMobile } from "../mobile";
 export function TwinPage() {
   const { state, route, go, setModal, run, busy } = useApp();
+  const mobile = useIsMobile();
   const [historical, setHistorical] = useState<any>(null);
   const t = historical || state.twin;
   const id = route.split("/")[1],
@@ -91,6 +92,9 @@ export function TwinPage() {
           <small>{date(t.generated_at)}</small>
         </div>
       </div>
+      {mobile ? (
+        <MobileDomainList twin={t} />
+      ) : (
       <div className="twin-domain-grid">
         {t.domains.map((d: RecordData) => {
           const Icon = domainIcons[d.id];
@@ -137,6 +141,7 @@ export function TwinPage() {
           );
         })}
       </div>
+      )}
       <section className="card timeline-section">
         <SectionTitle
           eyebrow="YOUR LONGITUDINAL RECORD"

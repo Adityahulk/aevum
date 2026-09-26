@@ -66,19 +66,23 @@ export function MobileTabBar({
   page: string;
   go: (route: string) => void;
 }) {
+  const { state } = useApp();
+  const running = state?.experiments?.some(isActiveExperiment);
   return (
     <nav className="mobile-tabbar" aria-label="Primary">
       {tabs.map(([id, label, Icon, pages]) => {
         const active = (pages as readonly string[]).includes(page);
+        const target =
+          id === "interventions" && running ? "interventions/active" : id;
         return (
           <a
             key={id}
-            href={"#" + id}
+            href={"#" + target}
             className={active ? "active" : ""}
             aria-current={active ? "page" : undefined}
             onClick={(e) => {
               e.preventDefault();
-              go(id);
+              go(target);
             }}
           >
             <Icon size={24} strokeWidth={active ? 2.2 : 1.8} />
@@ -311,7 +315,9 @@ export function MobileToday() {
   const hasDna =
     me.consents.genomics &&
     state.artifacts.some((a: RecordData) => a.kind === "genomics");
-  const systems = t.domains.filter((d: RecordData) => d.coverage > 0);
+  const doingWell = t.domains.filter(
+    (d: RecordData) => d.coverage > 0 && !attention.some((a) => a.id === d.id),
+  );
   const [head, tail] = priority ? headline(priority) : ["", ""];
   return (
     <div className="m-today">
@@ -449,7 +455,8 @@ export function MobileToday() {
           e={active}
           compact
           onCheckIn={() => setCheckIn(active)}
-          onOpen={() => go("interventions/active")}
+          onOpen={() => go("interventions/experiment/" + active.id)}
+          onEvaluated={(e) => go("interventions/experiment/" + e.id)}
         />
       ) : (
         <section className="m-card">
@@ -468,16 +475,16 @@ export function MobileToday() {
         </section>
       )}
 
-      {systems.length > 0 && (
+      {doingWell.length > 0 && (
         <>
           <div className="m-section-head">
-            <h2>Your systems</h2>
+            <h2>Doing well</h2>
             <button className="m-link" onClick={() => go("twin")}>
-              View Twin <ChevronRight size={16} />
+              All systems <ChevronRight size={16} />
             </button>
           </div>
           <div className="m-system-grid">
-            {systems.map((d: RecordData) => {
+            {doingWell.map((d: RecordData) => {
               const Icon = domainIcons[d.id] || Layers;
               return (
                 <button
@@ -511,6 +518,66 @@ export function MobileToday() {
         <ChevronRight size={18} />
       </button>
       {checkIn && <CheckInSheet e={checkIn} onClose={() => setCheckIn(null)} />}
+    </div>
+  );
+}
+
+export function MobileDomainList({ twin }: { twin: RecordData }) {
+  const { go } = useApp();
+  const attention = attentionDomains(twin);
+  const groups: [string, RecordData[]][] = [
+    ["Needs attention", attention],
+    [
+      "Doing well",
+      twin.domains.filter(
+        (d: RecordData) =>
+          d.coverage > 0 && !attention.some((a) => a.id === d.id),
+      ),
+    ],
+    [
+      "Not yet measured",
+      twin.domains.filter(
+        (d: RecordData) => !d.coverage && !attention.some((a) => a.id === d.id),
+      ),
+    ],
+  ];
+  return (
+    <div className="m-domain-groups">
+      {groups
+        .filter(([, list]) => list.length)
+        .map(([title, list]) => (
+          <section key={title}>
+            <div className="m-section-head">
+              <h2>{title}</h2>
+              <span className="m-muted">{list.length}</span>
+            </div>
+            <div className="m-card m-domain-list">
+              {list.map((d) => {
+                const Icon = domainIcons[d.id] || Layers;
+                return (
+                  <button key={d.id} onClick={() => go("twin/" + d.id)}>
+                    <span className={"domain-icon small domain-" + d.id}>
+                      <Icon size={18} />
+                    </span>
+                    <span className="m-domain-copy">
+                      <strong>{d.name}</strong>
+                      <small>{d.subtitle}</small>
+                      <small className="m-domain-state">
+                        {d.state} · {d.confidence} confidence
+                      </small>
+                    </span>
+                    <span className="m-badges">
+                      {d.severity === "Elevated" && (
+                        <Badge tone="red">Elevated</Badge>
+                      )}
+                      <Badge tone={trendTone(d.trend)}>{d.trend}</Badge>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
     </div>
   );
 }
@@ -749,15 +816,26 @@ export function ExperimentProgressCard({
   e,
   onCheckIn,
   onOpen,
+  onEvaluated,
   compact = false,
 }: {
   e: RecordData;
   onCheckIn: () => void;
   onOpen: () => void;
+  onEvaluated: (experiment: RecordData) => void;
   compact?: boolean;
 }) {
+  const { run, busy } = useApp();
   const week = experimentWeek(e);
   const targets = Object.entries(e.baseline || {}) as [string, RecordData][];
+  const due = e.status === "Evaluation due";
+  const evaluate = async () => {
+    const result = await run(
+      () => api("/experiments/" + e.id + "/evaluate", { method: "POST" }),
+      "Response evaluated; your Twin has been updated",
+    );
+    if (result) onEvaluated(result);
+  };
   return (
     <article className="m-card m-experiment">
       <div className="m-row">
@@ -765,9 +843,18 @@ export function ExperimentProgressCard({
         <div className="m-experiment-copy">
           <span className="m-eyebrow">Active experiment</span>
           <h3>{e.name}</h3>
-          <Badge tone="purple">{e.status}</Badge>
+          <Badge tone={due ? "amber" : "purple"}>
+            {e.response?.outcome || e.status}
+          </Badge>
         </div>
       </div>
+      {due && (
+        <p className="m-due">
+          Your {e.planned_duration_weeks} weeks are complete. Compare your
+          follow-up measurements with the frozen baseline to see whether it
+          worked.
+        </p>
+      )}
       <div className="m-row between m-adherence">
         <span>Reported adherence</span>
         <strong>{e.adherence}%</strong>
@@ -789,12 +876,29 @@ export function ExperimentProgressCard({
         </>
       )}
       <p className="m-body m-muted">Evaluation date · {date(e.due_date)}</p>
-      <Button className="m-block" onClick={onCheckIn}>
-        Check in <Check size={18} />
-      </Button>
-      <Button variant="secondary" className="m-block" onClick={onOpen}>
-        Open experiment <ArrowRight size={18} />
-      </Button>
+      {due ? (
+        <>
+          <Button className="m-block" onClick={evaluate} disabled={busy}>
+            See if it worked <ArrowRight size={18} />
+          </Button>
+          <Button variant="secondary" className="m-block" onClick={onCheckIn}>
+            Check in <Check size={18} />
+          </Button>
+        </>
+      ) : (
+        <Button className="m-block" onClick={onCheckIn}>
+          Check in <Check size={18} />
+        </Button>
+      )}
+      {due ? (
+        <button className="m-link m-center" onClick={onOpen}>
+          Open experiment <ChevronRight size={16} />
+        </button>
+      ) : (
+        <Button variant="secondary" className="m-block" onClick={onOpen}>
+          Open experiment <ArrowRight size={18} />
+        </Button>
+      )}
     </article>
   );
 }

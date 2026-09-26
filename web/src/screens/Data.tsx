@@ -58,6 +58,9 @@ export function DataPage() {
       .catch((error) => setError(error.message));
   }, [state, setError]);
   const provider = providers.find((p) => p.id === providerId);
+  const labDocumentCount = state.artifacts.filter((a: RecordData) =>
+    ["labs", "history"].includes(a.kind),
+  ).length;
   const confirmedHistory = historical.filter((record) => record.status === "confirmed");
   const historyArtifactIds = new Set(
     confirmedHistory.map((record) => String(record.artifact_id)),
@@ -157,13 +160,8 @@ export function DataPage() {
           <div>
             <h3>Bloodwork</h3>
             <p>
-              {
-                state.artifacts.filter((a: RecordData) =>
-                  ["labs", "history"].includes(a.kind),
-                )
-                  .length
-              }{" "}
-              source documents
+              {labDocumentCount}{" "}
+              {labDocumentCount === 1 ? "source document" : "source documents"}
             </p>
           </div>
           <Upload size={18} />

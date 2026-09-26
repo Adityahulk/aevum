@@ -12,8 +12,10 @@ import {
 import { api, post, RecordData } from "../api";
 import { Badge, Button, Empty } from "../components";
 import { useApp } from "../context";
+import { useIsMobile } from "../mobile";
 export function AIPage() {
   const { state, route, me, go, setModal, setError } = useApp();
+  const mobile = useIsMobile();
   const domain = route.split("/")[1];
   const [messages, setMessages] = useState<RecordData[]>([]),
     [question, setQuestion] = useState(""),
@@ -116,7 +118,9 @@ export function AIPage() {
                     </span>
                   </div>
                   {m.mode_detail && (
-                    <p className="muted text-small">{m.mode_detail}</p>
+                    <p className="muted text-small mode-detail">
+                      {m.mode_detail}
+                    </p>
                   )}
                   <p>{m.answer}</p>
                   <div className="claim-sources">
@@ -134,7 +138,8 @@ export function AIPage() {
                         }
                       >
                         <BookOpen size={13} />
-                        {m.evidence.length} scientific sources
+                        {m.evidence.length} scientific{" "}
+                        {m.evidence.length === 1 ? "source" : "sources"}
                       </button>
                     )}
                     <Badge>{m.claims?.[0]?.model_version}</Badge>
@@ -174,7 +179,9 @@ export function AIPage() {
           placeholder={
             domain
               ? `Ask about your ${domain} health…`
-              : "Ask about your biology, your trajectory, or your next step…"
+              : mobile
+                ? "Ask about your biology…"
+                : "Ask about your biology, your trajectory, or your next step…"
           }
         />
         <button

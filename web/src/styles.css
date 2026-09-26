@@ -5174,3 +5174,71 @@ p.m-status {
   color: #4a5550;
   margin: -2px 0 10px;
 }
+.m-due {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #fbf3e9;
+  color: #6f4d27;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.m-link.m-center {
+  display: flex;
+  margin: 4px auto 0;
+}
+.m-domain-groups .m-section-head {
+  margin-top: 22px;
+}
+.m-domain-list {
+  padding: 2px 14px;
+}
+.m-domain-list > button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.m-domain-list > button:last-child {
+  border-bottom: 0;
+}
+.m-domain-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.m-domain-copy strong {
+  font-size: 16px;
+  line-height: 1.3;
+}
+.m-domain-copy small {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.m-domain-copy .m-domain-state {
+  color: #46524c;
+  font-weight: 600;
+}
+.m-domain-list .m-badges {
+  flex-direction: column;
+  align-items: flex-end;
+}
+@media (max-width: 700px) {
+  .assistant-message p.mode-detail {
+    font-size: 12px;
+    line-height: 1.5;
+    margin: 6px 0 0;
+  }
+}
