@@ -359,6 +359,30 @@ def test_guide_claims_trace_to_actual_twin_and_reject_prescribing():
     assert "cannot diagnose" in answer({"question": "Prescribe a dose", "twin": t})["answer"]
 
 
+def test_guide_overview_covers_every_system_for_general_questions(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    t = model([obs("APOB", 130, 0, low=60, high=100), obs("GLUCOSE", 85, 0, low=70, high=99)])
+    r = answer({"question": "What do you think of my reports?", "twin": t, "profile": {}})
+    text = r["answer"]
+    assert text.startswith("Here is where your measured systems stand.")
+    assert "1 result is outside the lab range: ApoB" in text
+    assert "only one test date" in text
+    assert "Not yet measured:" in text
+    measured_ids = {o for d in t["domains"] for o in d["supporting_observation_ids"]}
+    assert set(r["claims"][0]["observation_ids"]) == measured_ids
+
+
+def test_guide_single_date_answer_reads_naturally_and_cites_lab_range(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    t = model([obs("APOB", 70, 0, low=60, high=100)])
+    text = answer({"question": "Tell me about my metabolic health", "twin": t, "profile": {}})["answer"]
+    assert "a insufficient data trajectory" not in text
+    assert "aren’t enough repeat measurements" in text
+    assert "ApoB is 70 mg/dL (within the lab range 60–100)" in text
+
+
 def test_pdf_extraction_requires_verification_and_preserves_date():
     import io
 

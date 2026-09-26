@@ -5,6 +5,74 @@ from catalog import CONCEPTS, EVIDENCE, MODEL_VERSION
 from llm import configured_provider, route
 from retrieval import search
 
+OVERVIEW = re.compile(
+    r"\b(reports?|results?|overall|summary|summari[sz]e|everything|how am i|my health)\b"
+)
+
+
+def _mentioned_domain(lower, twin):
+    for d in twin["domains"]:
+        if d["id"] in lower or any(
+            w in lower for w in d["name"].lower().replace("&", "").split() if len(w) > 4
+        ):
+            return d["id"]
+    for code, concept in CONCEPTS.items():
+        names = [code.lower(), concept[0].lower(), *concept[5]]
+        if any(re.search(r"\b" + re.escape(n) + r"\b", lower) for n in names):
+            return next(
+                (
+                    domain
+                    for domain in concept[2]
+                    if any(d["id"] == domain for d in twin["domains"])
+                ),
+                None,
+            )
+    return None
+
+
+def _num(value):
+    return f"{value:g}" if isinstance(value, (int, float)) else str(value)
+
+
+def _range_note(signal):
+    r = signal.get("reference_range") or {}
+    low, high = r.get("low"), r.get("high")
+    if low is None and high is None:
+        return ""
+    where = "outside" if signal.get("abnormal") else "within"
+    bounds = (
+        f"{_num(low)}–{_num(high)}"
+        if low is not None and high is not None
+        else f"{'above ' + _num(low) if low is not None else 'below ' + _num(high)}"
+    )
+    return f" ({where} the lab range {bounds})"
+
+
+def _overview(twin):
+    measured = [d for d in twin["domains"] if d["signals"]]
+    unmeasured = [d for d in twin["domains"] if not d["signals"]]
+    if not measured:
+        return "There are no verified measurements yet. Add a lab report to build your Twin."
+    text = (
+        "Here is where your measured systems stand. "
+        + "; ".join(f"{d['name']}: {d['state'].lower()}" for d in measured)
+        + ". "
+    )
+    signals = [s for d in measured for s in d["signals"]]
+    outside = list(dict.fromkeys(s["label"] for s in signals if s.get("abnormal")))
+    ranged = [s for s in signals if _range_note(s)]
+    if outside:
+        text += f"{len(outside)} {'result is' if len(outside) == 1 else 'results are'} outside the lab range: {', '.join(outside[:6])}. "
+    elif ranged:
+        text += "Every result that came with a lab range is within it. "
+    else:
+        text += "These results don’t include lab reference ranges, so they can’t be judged high or low yet. "
+    if all(d["trend"] in ("Insufficient data", "Uncertain") for d in measured):
+        text += "There is only one test date so far, so trends will appear after your next measurements. "
+    if unmeasured:
+        text += f"Not yet measured: {', '.join(d['name'] for d in unmeasured)}. "
+    return text + "Ask about any system for more detail. Coverage and measurement timing limit certainty."
+
 
 def answer(payload):
     q = str(payload.get("question", ""))[:2000]
@@ -22,26 +90,11 @@ def answer(payload):
             lower += " did it work?"
         elif routed["tool"] == "get_genomic_findings":
             lower += " genomic context"
-    if not selected:
-        for d in twin["domains"]:
-            if d["id"] in lower or any(
-                w in lower for w in d["name"].lower().replace("&", "").split() if len(w) > 4
-            ):
-                selected = d["id"]
-                break
-    if not selected:
-        for code, concept in CONCEPTS.items():
-            names = [code.lower(), concept[0].lower(), *concept[5]]
-            if any(re.search(r"\b" + re.escape(n) + r"\b", lower) for n in names):
-                selected = next(
-                    (
-                        domain
-                        for domain in concept[2]
-                        if any(d["id"] == domain for d in twin["domains"])
-                    ),
-                    None,
-                )
-                break
+    mentioned = _mentioned_domain(lower, twin)
+    overview = bool(
+        not payload.get("domain") and not mentioned and OVERVIEW.search(lower)
+    )
+    selected = selected or mentioned
     d = next((d for d in twin["domains"] if d["id"] == selected), None)
     if not d:
         d = next(
@@ -97,12 +150,26 @@ def answer(payload):
             for c in e["response"]["changes"]
             for o in c["observation_ids"]
         ]
+    elif overview:
+        text = _overview(twin)
+        ids = list(
+            dict.fromkeys(
+                o for x in twin["domains"] for o in x.get("supporting_observation_ids", [])
+            )
+        )
+        rels = []
+        eids = []
     else:
-        text = f"Your {d['name'].lower()} is classified as {d['state'].lower()}, with a {d['trend'].lower()} trajectory and {d['confidence'].lower()} confidence. "
+        if d["trend"] in ("Insufficient data", "Uncertain"):
+            text = f"Your {d['name'].lower()} is classified as {d['state'].lower()} with {d['confidence'].lower()} confidence. There aren’t enough repeat measurements to show a trend yet. "
+        else:
+            text = f"Your {d['name'].lower()} is classified as {d['state'].lower()}, with a {d['trend'].lower()} trajectory and {d['confidence'].lower()} confidence. "
         for f in d["signals"][:3]:
-            text += f"{f['label']} is {f['current']} {f['unit']}"
+            text += f"{f['label']} is {_num(f['current'])} {f['unit']}"
             if f["baseline"] is not None:
                 text += f", compared with your baseline of {f['baseline']} ({f['personal_change_pct']:+g}%)"
+            else:
+                text += _range_note(f)
             text += ". "
         if rels:
             text += (
