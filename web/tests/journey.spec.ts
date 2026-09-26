@@ -206,8 +206,7 @@ test("every concerning domain is surfaced, not only the top three", async ({
   await demo(page);
   const state = await (await page.request.get("/api/state")).json();
   const concerning = state.twin.domains.filter(
-    (d: any) =>
-      state.twin.priorities.includes(d.id) || d.severity !== "None",
+    (d: any) => state.twin.priorities.includes(d.id) || d.severity !== "None",
   );
   const beyondTop = concerning.filter(
     (d: any) => !state.twin.priorities.includes(d.id),
@@ -222,14 +221,31 @@ test("every concerning domain is surfaced, not only the top three", async ({
   await expect(
     page.getByText(`Priority 1 of ${concerning.length}`),
   ).toBeVisible();
-  await expect(page.locator(".m-attention")).toHaveCount(
-    concerning.length - 1,
-  );
+  await expect(page.locator(".m-attention")).toHaveCount(concerning.length - 1);
   for (const d of concerning.slice(1)) {
     await expect(
       page.locator(".m-attention").filter({ hasText: d.name }),
     ).toBeVisible();
   }
+});
+test("mobile protocol leads to the active experiment and its evaluation", async ({
+  page,
+}) => {
+  await demo(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#home");
+  const tabs = page.getByRole("navigation", { name: "Primary" });
+  await tabs.getByRole("link", { name: "Protocol", exact: true }).click();
+  await expect(page).toHaveURL(/#interventions\/active$/);
+  await tabs.getByRole("link", { name: "Today", exact: true }).click();
+  await page
+    .locator(".m-experiment")
+    .getByRole("button", { name: "See if it worked" })
+    .click();
+  await expect(page).toHaveURL(/#interventions\/experiment\//);
+  await expect(page.getByRole("dialog")).toContainText("DID IT WORK?");
+  const state = await (await page.request.get("/api/state")).json();
+  expect(state.experiments.some((e: any) => e.response)).toBe(true);
 });
 test("mobile navigation and every screen fit the viewport", async ({
   page,

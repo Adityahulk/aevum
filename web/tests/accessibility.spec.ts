@@ -61,6 +61,7 @@ test("WCAG AA checks across mobile screens and sheets", async ({ page }) => {
   };
   for (const route of [
     "home",
+    "twin",
     "twin/recovery",
     "interventions/active",
     "ai",
