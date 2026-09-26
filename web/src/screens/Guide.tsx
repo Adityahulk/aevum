@@ -8,11 +8,15 @@ import {
   Sparkles,
   Send,
   LoaderCircle,
+  Mic,
+  Square,
+  Volume2,
 } from "lucide-react";
 import { api, post, RecordData } from "../api";
 import { Badge, Button, Empty } from "../components";
 import { useApp } from "../context";
 import { useIsMobile } from "../mobile";
+import { useSpeech, useVoiceInput } from "../voice";
 export function AIPage() {
   const { state, route, me, go, setModal, setError } = useApp();
   const mobile = useIsMobile();
@@ -20,19 +24,26 @@ export function AIPage() {
   const [messages, setMessages] = useState<RecordData[]>([]),
     [question, setQuestion] = useState(""),
     [sending, setSending] = useState(false);
+  const speech = useSpeech();
+  const voice = useVoiceInput({
+    onInterim: setQuestion,
+    onFinal: (text) => ask(text, true),
+    onError: setError,
+  });
   useEffect(() => {
     if (me.consents.ai)
       api("/ai/history")
         .then(setMessages)
         .catch((e: any) => setError(e.message));
   }, [me.consents.ai]);
-  async function ask(q: string) {
+  async function ask(q: string, spoken = false) {
     if (!q.trim() || sending) return;
     setSending(true);
     setQuestion("");
     try {
       const answer = await post("/ai", { question: q, domain });
       setMessages((m) => [...m, answer]);
+      if (spoken) speech.speak(answer.id, answer.answer);
     } catch (e: any) {
       setError(e.message);
       setQuestion(q);
@@ -142,6 +153,23 @@ export function AIPage() {
                         {m.evidence.length === 1 ? "source" : "sources"}
                       </button>
                     )}
+                    {speech.supported && (
+                      <button
+                        aria-pressed={speech.speakingId === m.id}
+                        onClick={() =>
+                          speech.speakingId === m.id
+                            ? speech.stop()
+                            : speech.speak(m.id, m.answer)
+                        }
+                      >
+                        {speech.speakingId === m.id ? (
+                          <Square size={13} />
+                        ) : (
+                          <Volume2 size={13} />
+                        )}
+                        {speech.speakingId === m.id ? "Stop" : "Listen"}
+                      </button>
+                    )}
                     <Badge>{m.claims?.[0]?.model_version}</Badge>
                   </div>
                   <details className="claim-details">
@@ -177,24 +205,48 @@ export function AIPage() {
           onChange={(e) => setQuestion(e.target.value)}
           maxLength={2000}
           placeholder={
-            domain
-              ? `Ask about your ${domain} health…`
-              : mobile
-                ? "Ask about your biology…"
-                : "Ask about your biology, your trajectory, or your next step…"
+            voice.listening
+              ? "Listening…"
+              : domain
+                ? `Ask about your ${domain} health…`
+                : mobile
+                  ? "Ask about your biology…"
+                  : "Ask about your biology, your trajectory, or your next step…"
           }
         />
+        {voice.supported && (
+          <button
+            type="button"
+            className={"voice-button " + (voice.listening ? "listening" : "")}
+            aria-label={voice.listening ? "Stop listening" : "Ask by voice"}
+            aria-pressed={voice.listening}
+            disabled={sending}
+            onClick={() => {
+              speech.stop();
+              voice.listening ? voice.stop() : voice.start();
+            }}
+          >
+            {voice.listening ? <Square size={18} /> : <Mic size={20} />}
+          </button>
+        )}
         <button
           aria-label="Send question"
-          disabled={sending || !question.trim()}
+          disabled={sending || voice.listening || !question.trim()}
         >
           <ArrowRight size={21} />
         </button>
       </form>
+      {voice.listening && (
+        <p className="voice-status" role="status">
+          Listening… ask your question, then pause.
+        </p>
+      )}
       <p className="ai-footnote">
         Explanations come from your structured data. Model routing is optional;
         all claims come from structured retrieval. The guide does not diagnose
         or prescribe.
+        {voice.supported &&
+          " Voice questions are transcribed by your browser’s speech service and sent like typed text."}
       </p>
     </div>
   );
