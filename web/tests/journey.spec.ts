@@ -200,6 +200,37 @@ test("genotype review, private source ownership, consent revocation and empty ge
   expect(state.observations.some((o: any) => o.source === "oura")).toBe(false);
   expect(state.twin.features.HRV).toBeUndefined();
 });
+test("every concerning domain is surfaced, not only the top three", async ({
+  page,
+}) => {
+  await demo(page);
+  const state = await (await page.request.get("/api/state")).json();
+  const concerning = state.twin.domains.filter(
+    (d: any) =>
+      state.twin.priorities.includes(d.id) || d.severity !== "None",
+  );
+  const beyondTop = concerning.filter(
+    (d: any) => !state.twin.priorities.includes(d.id),
+  );
+  for (const d of beyondTop) {
+    await expect(
+      page.getByRole("button", { name: new RegExp(d.name) }).first(),
+    ).toBeVisible();
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#home");
+  await expect(
+    page.getByText(`Priority 1 of ${concerning.length}`),
+  ).toBeVisible();
+  await expect(page.locator(".m-attention")).toHaveCount(
+    concerning.length - 1,
+  );
+  for (const d of concerning.slice(1)) {
+    await expect(
+      page.locator(".m-attention").filter({ hasText: d.name }),
+    ).toBeVisible();
+  }
+});
 test("mobile navigation and every screen fit the viewport", async ({
   page,
 }) => {
