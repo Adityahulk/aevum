@@ -140,7 +140,7 @@ export function InterventionsPage() {
                 <div className="recommendation-main">
                   <div className="row wrap">
                     <span className="eyebrow">{r.category}</span>
-                    {i === 0 && (
+                    {i === 0 && r.personal_relevance !== "Unknown" && (
                       <Badge tone="green">Highest personal relevance</Badge>
                     )}
                     {r.already_active && (

@@ -100,6 +100,16 @@ export function MobileTabBar({
 const trendTone = (trend: string) =>
   trend === "Improving" ? "green" : trend === "Worsening" ? "amber" : "purple";
 
+function StatusBadge({ d }: { d: RecordData }) {
+  if (["Improving", "Worsening", "Stable", "Mixed"].includes(d.trend))
+    return <Badge tone={trendTone(d.trend)}>{d.trend}</Badge>;
+  if (d.state === "Within personal baseline")
+    return <Badge tone="green">Within baseline</Badge>;
+  if (d.state === "Within source intervals")
+    return <Badge tone="green">In range</Badge>;
+  return null;
+}
+
 function topSignal(d: RecordData) {
   const matching = d.signals.filter(
     (s: RecordData) => s.trend === d.trend && s.personal_change_pct != null,
@@ -122,7 +132,7 @@ function relativeDays(value?: string) {
   if (days <= 0) return "today";
   if (days === 1) return "yesterday";
   if (days < 60) return `${days} days ago`;
-  return `${Math.round(days / 30)} months ago`;
+  return `${Math.floor(days / 30)} months ago`;
 }
 
 function latest(observations: RecordData[]) {
@@ -271,7 +281,7 @@ function AttentionCard({ d, rank }: { d: RecordData; rank: number }) {
           <strong>{d.name}</strong>
           <span className="m-badges">
             {d.severity === "Elevated" && <Badge tone="red">Elevated</Badge>}
-            <Badge tone={trendTone(d.trend)}>{d.trend}</Badge>
+            <StatusBadge d={d} />
           </span>
         </span>
         <small>{signal ? signalSentence(signal) : d.state}</small>
@@ -322,6 +332,7 @@ export function MobileToday() {
     (d: RecordData) =>
       isWithinExpected(d) && !attention.some((a) => a.id === d.id),
   );
+  const unmeasured = t.domains.filter((d: RecordData) => !d.coverage);
   const [head, tail] = priority ? headline(priority) : ["", ""];
   return (
     <div className="m-today">
@@ -365,7 +376,7 @@ export function MobileToday() {
               {priority.severity === "Elevated" && (
                 <Badge tone="red">Elevated</Badge>
               )}
-              <Badge tone={trendTone(priority.trend)}>{priority.trend}</Badge>
+              <StatusBadge d={priority} />
             </span>
           </div>
           <h2>
@@ -429,12 +440,34 @@ export function MobileToday() {
             Nothing needs <em>attention right now</em>
           </h2>
           <p>
-            Your measured systems are within source intervals or your personal
-            baseline. Keep measurements current so new changes are caught early.
+            {doingWell.length === 1
+              ? "Your 1 measured system is"
+              : `All ${doingWell.length} measured systems are`}{" "}
+            within the lab’s range or your personal baseline
+            {labDate ? `, based on results from ${shortDate(labDate)}` : ""}.
           </p>
+          {unmeasured.length > 0 && (
+            <p className="m-scope-note">
+              {unmeasured.length}{" "}
+              {unmeasured.length === 1 ? "system isn’t" : "systems aren’t"}{" "}
+              measured yet:{" "}
+              {unmeasured.map((d: RecordData) => d.name).join(", ")}.
+              {!wearableDate &&
+                " Wearable data adds recovery and fitness signals."}
+            </p>
+          )}
           <Button className="m-block" onClick={() => go("twin")}>
             Explore your Twin <ArrowRight size={18} />
           </Button>
+          {unmeasured.length > 0 && !wearableDate && (
+            <Button
+              variant="secondary"
+              className="m-block"
+              onClick={() => go("data")}
+            >
+              Connect a wearable <ArrowRight size={18} />
+            </Button>
+          )}
         </section>
       ) : (
         <section className="m-card m-priority">
@@ -529,7 +562,7 @@ export function MobileToday() {
                     <span className={"domain-icon small domain-" + d.id}>
                       <Icon size={18} />
                     </span>
-                    <Badge tone={trendTone(d.trend)}>{d.trend}</Badge>
+                    <StatusBadge d={d} />
                   </span>
                   <strong>{d.name}</strong>
                   <small>{d.state}</small>
@@ -612,7 +645,7 @@ export function MobileDomainList({ twin }: { twin: RecordData }) {
                       {d.severity === "Elevated" && (
                         <Badge tone="red">Elevated</Badge>
                       )}
-                      <Badge tone={trendTone(d.trend)}>{d.trend}</Badge>
+                      <StatusBadge d={d} />
                     </span>
                   </button>
                 );
