@@ -220,7 +220,7 @@ export function AuthScreen({ onSuccess }: { onSuccess: () => Promise<any> }) {
 }
 
 export function Onboarding() {
-  const { me, run, busy, go } = useApp();
+  const { me, run, busy, go, state } = useApp();
   const [step, setStep] = useState(0),
     [goal, setGoal] = useState("Longevity"),
     [health, setHealth] = useState(false),
@@ -387,7 +387,7 @@ export function Onboarding() {
                       onboarded: true,
                     });
                     sessionStorage.removeItem("aevum-onboarding");
-                    go("data");
+                    go(state?.observations?.length ? "home" : "data");
                   }, "Your workspace is ready")
                 }
               >

@@ -13,6 +13,17 @@ export function attentionDomains(twin: RecordData): RecordData[] {
     );
 }
 
+export const isWithinExpected = (d: RecordData) =>
+  ["Within source intervals", "Within personal baseline"].includes(d.state);
+
+// Without lab reference ranges or a repeat measurement, nothing can be judged high or low.
+export const canAssess = (twin: RecordData) =>
+  twin.domains.some(
+    (d: RecordData) =>
+      isWithinExpected(d) ||
+      ["Moderate concern", "Elevated concern"].includes(d.state),
+  );
+
 export const isActiveExperiment = (e: RecordData) =>
   !["Stopped", "Evaluated"].includes(e.status);
 

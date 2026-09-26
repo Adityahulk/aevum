@@ -24,7 +24,7 @@ import {
 import { useApp } from "../context";
 import { domainIcons } from "../config";
 import { MobileToday, useIsMobile } from "../mobile";
-import { attentionDomains } from "../priorities";
+import { attentionDomains, canAssess } from "../priorities";
 export function HomePage() {
   const mobile = useIsMobile();
   return mobile ? <MobileToday /> : <DesktopHome />;
@@ -111,11 +111,13 @@ function DesktopHome() {
         <SectionTitle
           eyebrow="THE SIGNAL, NOT THE NOISE"
           title={
-            priorities.length === 1
-              ? "One thing worth knowing"
-              : priorities.length === 2
-                ? "Two things worth knowing"
-                : "Three things worth knowing"
+            !priorities.length
+              ? "Where things stand"
+              : priorities.length === 1
+                ? "One thing worth knowing"
+                : priorities.length === 2
+                  ? "Two things worth knowing"
+                  : "Three things worth knowing"
           }
           action={
             <button className="text-button" onClick={() => go("twin")}>
@@ -174,6 +176,22 @@ function DesktopHome() {
               );
             })}
           </div>
+        ) : state.observations.length && !canAssess(t) ? (
+          <Empty
+            title="Your results are in, but can’t be flagged yet"
+            action={
+              <Button
+                onClick={() => setModal({ type: "upload", kind: "labs" })}
+              >
+                <Upload size={16} />
+                Add the original lab report
+              </Button>
+            }
+          >
+            These records don’t include the lab’s reference ranges, and there’s
+            no second test date yet, so Aevum can’t tell which results are high
+            or low for you.
+          </Empty>
         ) : state.observations.length ? (
           <Empty
             title="Nothing needs attention right now"

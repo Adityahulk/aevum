@@ -29,8 +29,10 @@ import { domainIcons } from "./config";
 import { isWearable } from "./wearables";
 import {
   attentionDomains,
+  canAssess,
   experimentsTargeting,
   isActiveExperiment,
+  isWithinExpected,
   suggestionFor,
 } from "./priorities";
 
@@ -316,7 +318,8 @@ export function MobileToday() {
     me.consents.genomics &&
     state.artifacts.some((a: RecordData) => a.kind === "genomics");
   const doingWell = t.domains.filter(
-    (d: RecordData) => d.coverage > 0 && !attention.some((a) => a.id === d.id),
+    (d: RecordData) =>
+      isWithinExpected(d) && !attention.some((a) => a.id === d.id),
   );
   const [head, tail] = priority ? headline(priority) : ["", ""];
   return (
@@ -384,6 +387,35 @@ export function MobileToday() {
           )}
           <Button className="m-block" onClick={() => go("twin/" + priority.id)}>
             See why this is happening <ArrowRight size={18} />
+          </Button>
+        </section>
+      ) : state.observations.length && !canAssess(t) ? (
+        <section className="m-card m-priority tone-amber">
+          <div className="m-row between">
+            <span className="m-eyebrow">Your priorities</span>
+            <Badge tone="amber">Not assessed yet</Badge>
+          </div>
+          <h2>
+            Your results are in, <em>but can’t be flagged yet</em>
+          </h2>
+          <p>
+            These records don’t include the lab’s reference ranges, and there’s
+            no second test date yet, so Aevum can’t tell which results are high
+            or low for you.
+          </p>
+          <Button
+            className="m-block"
+            onClick={() => setModal({ type: "upload", kind: "labs" })}
+          >
+            <Upload size={18} />
+            Add the original lab report
+          </Button>
+          <Button
+            variant="secondary"
+            className="m-block"
+            onClick={() => go("data")}
+          >
+            Review your results <ArrowRight size={18} />
           </Button>
         </section>
       ) : state.observations.length ? (
@@ -531,7 +563,16 @@ export function MobileDomainList({ twin }: { twin: RecordData }) {
       "Doing well",
       twin.domains.filter(
         (d: RecordData) =>
-          d.coverage > 0 && !attention.some((a) => a.id === d.id),
+          isWithinExpected(d) && !attention.some((a) => a.id === d.id),
+      ),
+    ],
+    [
+      "Measured, not yet assessable",
+      twin.domains.filter(
+        (d: RecordData) =>
+          d.coverage > 0 &&
+          !isWithinExpected(d) &&
+          !attention.some((a) => a.id === d.id),
       ),
     ],
     [
@@ -668,20 +709,35 @@ export function PathwayStory({ d }: { d: RecordData }) {
               : "Missing data is not interpreted as healthy or unhealthy."}
           </p>
         </Step>
-        <Step
-          n={2}
-          eyebrow="What it suggests"
-          chip={`${d.confidence} confidence`}
-          tone={d.phenotype ? "purple" : "green"}
-          title={d.phenotype || "No concerning pattern established"}
-        >
-          <p>
-            {d.state}.{" "}
-            {d.concordance != null
-              ? `${Math.round(d.concordance * 100)}% of available signals agree.`
-              : ""}
-          </p>
-        </Step>
+        {!d.phenotype && !isWithinExpected(d) ? (
+          <Step
+            n={2}
+            eyebrow="What it suggests"
+            chip="Not assessed yet"
+            tone="amber"
+            title="Not assessable yet"
+          >
+            <p>
+              {d.state}. Without the lab’s reference ranges or a repeat
+              measurement, these results can’t be judged high or low yet.
+            </p>
+          </Step>
+        ) : (
+          <Step
+            n={2}
+            eyebrow="What it suggests"
+            chip={`${d.confidence} confidence`}
+            tone={d.phenotype ? "purple" : "green"}
+            title={d.phenotype || "No concerning pattern established"}
+          >
+            <p>
+              {d.state}.{" "}
+              {d.concordance != null
+                ? `${Math.round(d.concordance * 100)}% of available signals agree.`
+                : ""}
+            </p>
+          </Step>
+        )}
         <Step
           n={3}
           eyebrow="Biological process"
