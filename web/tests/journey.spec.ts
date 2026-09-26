@@ -200,6 +200,62 @@ test("genotype review, private source ownership, consent revocation and empty ge
   expect(state.observations.some((o: any) => o.source === "oura")).toBe(false);
   expect(state.twin.features.HRV).toBeUndefined();
 });
+test("results without lab ranges or a repeat test are not shown as all clear", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Build my Twin" }).click();
+  await page.getByLabel("Your name").fill("Range Test");
+  await page
+    .getByLabel("Email address")
+    .fill(`ranges-${Date.now()}@example.test`);
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("long enough test password");
+  await page.getByRole("button", { name: "Create my account" }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByLabel("Age", { exact: true }).fill("35");
+  await page.getByLabel("Sex for clinical context").selectOption("Male");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByLabel("Process my health data", { exact: false }).check();
+  await page.getByRole("button", { name: "Create my workspace" }).click();
+  await page.getByRole("button", { name: "Add data", exact: true }).click();
+  await page.locator("input[type=file]").setInputFiles({
+    name: "no-ranges.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      "biomarker,value,unit,date,reference_low,reference_high\nApoB,122,mg/dL,2026-08-02,,\nFasting glucose,90,mg/dL,2026-08-02,,\n",
+    ),
+  });
+  await page.getByRole("button", { name: "Upload & review" }).click();
+  await page
+    .getByLabel(
+      "I checked the results, dates and units against the original source.",
+    )
+    .check();
+  await page.getByRole("button", { name: "Confirm & update my Twin" }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await page.goto("/#home");
+  await expect(
+    page.getByRole("heading", {
+      name: "Your results are in, but can’t be flagged yet",
+    }),
+  ).toBeVisible();
+  await expect(page.getByText("Nothing needs attention right now")).toHaveCount(
+    0,
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#home");
+  await expect(page.getByText("Not assessed yet")).toBeVisible();
+  await expect(page.getByText("All clear")).toHaveCount(0);
+  await page.goto("/#twin");
+  await expect(
+    page.getByRole("heading", { name: "Measured, not yet assessable" }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Doing well" })).toHaveCount(
+    0,
+  );
+});
 test("every concerning domain is surfaced, not only the top three", async ({
   page,
 }) => {
