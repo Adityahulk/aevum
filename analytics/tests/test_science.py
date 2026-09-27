@@ -455,7 +455,7 @@ def test_scanned_pdf_never_silently_creates_observations():
 
 def test_external_llm_answer_is_structured_private_and_source_validated(monkeypatch):
     import httpx
-    from llm import UngroundedAnswer, generate
+    from llm import LlmUnavailable, UngroundedAnswer, generate
 
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setenv("OPENAI_MODEL", "operator-selected-model")
@@ -517,6 +517,11 @@ def test_external_llm_answer_is_structured_private_and_source_validated(monkeypa
         httpx.MockTransport(respond),
     )
     assert result["claims"][0]["source_ids"] == ["measurement:obs-1"]
+
+    provider_error = '{"error":{"message":"invalid model"}}'
+    failing = httpx.MockTransport(lambda req: httpx.Response(400, text=provider_error))
+    with pytest.raises(LlmUnavailable, match="invalid model"):
+        generate("Why?", context, {"measurement:obs-1"}, failing)
 
     malicious = httpx.MockTransport(
         lambda req: httpx.Response(

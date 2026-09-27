@@ -240,5 +240,7 @@ def generate(
         return _validate(json.loads(_output_text(body)), allowed_source_ids)
     except UngroundedAnswer:
         raise
+    except httpx.HTTPStatusError as exc:
+        raise LlmUnavailable(exc.response.text) from exc
     except (httpx.HTTPError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
-        raise LlmUnavailable("The configured AI model could not complete this answer.") from exc
+        raise LlmUnavailable(str(exc)) from exc

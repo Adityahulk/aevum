@@ -33,10 +33,7 @@ public class Science {
       return client.post().uri(path).body(body).retrieve().body(Map.class);
     } catch (RestClientResponseException e) {
       int status = e.getStatusCode().value();
-      if (status == 502 || status == 503)
-        throw new Api.Failure(
-            503, "Ask Aevum is temporarily unavailable. Your saved data is safe; try again shortly.");
-      throw new Api.Failure(422, "The data could not be processed: " + e.getResponseBodyAsString());
+      throw new Api.Failure(status, e.getResponseBodyAsString());
     } catch (Exception e) {
       throw new Api.Failure(
           503, "The analysis service is unavailable. Your saved data is safe; try again shortly.");
