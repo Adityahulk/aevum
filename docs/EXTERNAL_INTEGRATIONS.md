@@ -24,7 +24,14 @@ The language model is used only to choose a bounded, read-only retrieval route. 
    If `LLM_MODEL` is omitted while `OPENAI_API_KEY` is set, analytics defaults to `gpt-6-luna`. Chat Completions function calling for Luna requires `reasoning_effort=none`; the analytics adapter sets that automatically.
 
 4. Redeploy `analytics` and ask a Guide question from a sample account.
-5. Confirm the reply mode is `LLM-routed guide` and that the deterministic guide still answers when the key is temporarily removed.
+5. Confirm the reply mode is `LLM-routed guide`. If the UI still shows `Grounded guide`, read the new failure detail under the answer (for example `invalid_api_key` or `model_not_found`) and check Railway `analytics` logs for `LLM routing failed`. The deterministic guide still answers when the key is temporarily removed.
+
+Common failure causes when `LLM_MODEL=gpt-6-luna` is already set:
+
+- The key is on the wrong Railway service (`web` / `api` instead of `analytics`)
+- The key is invalid, revoked, or missing project billing / model access
+- Accidental quotes or trailing whitespace in the Railway variable value
+- Outbound calls from `analytics` to `api.openai.com` are blocked
 
 Do not place the OpenAI key in `web`; it belongs only in the private analytics service. Set a modest usage limit and billing alert for the pilot.
 

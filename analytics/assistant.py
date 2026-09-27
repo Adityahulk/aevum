@@ -2,19 +2,28 @@ import re
 import uuid
 
 from catalog import CONCEPTS, EVIDENCE, MODEL_VERSION
-from llm import configured_provider, route
+from llm import configured_provider, last_routing_error, route
 from retrieval import search
 
 OVERVIEW = re.compile(
     r"\b(reports?|results?|overall|summary|summari[sz]e|everything|how am i|my health)\b"
 )
+# Domain display names include generic words like "health" / "profile" that must not
+# hijack broad questions ("tell me about my health") into a single system.
+_GENERIC_DOMAIN_WORDS = frozenset({"health", "profile", "context"})
 
 
 def _mentioned_domain(lower, twin):
     for d in twin["domains"]:
-        if d["id"] in lower or any(
-            w in lower for w in d["name"].lower().replace("&", "").split() if len(w) > 4
-        ):
+        name = d["name"].lower()
+        if d["id"] in lower or name in lower:
+            return d["id"]
+        words = [
+            w
+            for w in name.replace("&", " ").split()
+            if len(w) > 4 and w not in _GENERIC_DOMAIN_WORDS
+        ]
+        if any(re.search(r"\b" + re.escape(w) + r"\b", lower) for w in words):
             return d["id"]
     for code, concept in CONCEPTS.items():
         names = [code.lower(), concept[0].lower(), *concept[5]]
@@ -192,11 +201,19 @@ def answer(payload):
         )
         if routed
         else (
-            "External routing is configured ("
-            + provider["provider"]
-            + "/"
-            + provider["model"]
-            + ") but the provider call failed or returned an invalid tool; using the deterministic guide."
+            (
+                "External routing is configured ("
+                + provider["provider"]
+                + "/"
+                + provider["model"]
+                + ") but the provider call failed"
+                + (
+                    " (" + last_routing_error() + ")"
+                    if last_routing_error()
+                    else " or returned an invalid tool"
+                )
+                + "; using the deterministic guide."
+            )
             if provider
             else "Deterministic explanations from your structured model; external routing is unavailable or unconfigured."
         ),

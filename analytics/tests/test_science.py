@@ -363,14 +363,18 @@ def test_guide_overview_covers_every_system_for_general_questions(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     t = model([obs("APOB", 130, 0, low=60, high=100), obs("GLUCOSE", 85, 0, low=70, high=99)])
-    r = answer({"question": "What do you think of my reports?", "twin": t, "profile": {}})
-    text = r["answer"]
-    assert text.startswith("Here is where your measured systems stand.")
-    assert "1 result is outside the lab range: ApoB" in text
-    assert "only one test date" in text
-    assert "Not yet measured:" in text
-    measured_ids = {o for d in t["domains"] for o in d["supporting_observation_ids"]}
-    assert set(r["claims"][0]["observation_ids"]) == measured_ids
+    for question in (
+        "What do you think of my reports?",
+        "Now tell me more about my health",
+    ):
+        r = answer({"question": question, "twin": t, "profile": {}})
+        text = r["answer"]
+        assert text.startswith("Here is where your measured systems stand."), question
+        assert "1 result is outside the lab range: ApoB" in text
+        assert "only one test date" in text
+        assert "Not yet measured:" in text
+        measured_ids = {o for d in t["domains"] for o in d["supporting_observation_ids"]}
+        assert set(r["claims"][0]["observation_ids"]) == measured_ids
 
 
 def test_guide_single_date_answer_reads_naturally_and_cites_lab_range(monkeypatch):
@@ -655,7 +659,10 @@ def test_guide_mode_detail_explains_configured_but_failed_routing(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
     def fail(req):
-        return httpx.Response(500, text="upstream down")
+        return httpx.Response(
+            401,
+            text='{"error":{"message":"Incorrect API key provided","code":"invalid_api_key"}}',
+        )
 
     monkeypatch.setattr(
         "assistant.route",
@@ -675,6 +682,47 @@ def test_guide_mode_detail_explains_configured_but_failed_routing(monkeypatch):
     assert out["mode"] == "Grounded guide"
     assert "configured" in out["mode_detail"]
     assert "openai/gpt-6-luna" in out["mode_detail"]
+    assert "invalid_api_key" in out["mode_detail"]
+    assert "Incorrect API key provided" in out["mode_detail"]
+
+
+def test_openai_aliases_common_misconfigured_luna_model_ids(monkeypatch):
+    import httpx
+    from llm import configured_provider, route
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "  test-key  ")
+    monkeypatch.setenv("LLM_MODEL", "gpt-4-luna")
+
+    assert configured_provider() == {"provider": "openai", "model": "gpt-6-luna"}
+
+    def respond(req):
+        body = json.loads(req.content)
+        assert body["model"] == "gpt-6-luna"
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "tool_calls": [
+                                {
+                                    "type": "function",
+                                    "function": {
+                                        "name": "get_domain",
+                                        "arguments": '{"domain": "metabolic"}',
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+        )
+
+    result = route("What about food?", httpx.MockTransport(respond))
+    assert result["model"] == "gpt-6-luna"
+    assert result["tool"] == "get_domain"
 
 
 def test_evidence_retrieval_returns_citations_and_normalized_vectors():
