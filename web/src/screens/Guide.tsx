@@ -3,6 +3,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   BookOpen,
+  CheckCircle2,
   Database,
   Dna,
   Sparkles,
@@ -101,10 +102,10 @@ export function AIPage() {
             <p>Let’s connect your measurements to the bigger picture.</p>
             <div className="prompt-grid">
               {[
-                "Why is my metabolic health changing?",
-                "What should I prioritize next?",
+                "What should I eat based on my current signals?",
+                "What workout should I prioritize?",
+                "Explain the biology behind my main issue.",
                 "Why was this intervention ranked first?",
-                "Did my experiment actually work?",
               ].map((q) => (
                 <button key={q} onClick={() => ask(q)}>
                   {q}
@@ -125,7 +126,8 @@ export function AIPage() {
                   <div className="row between">
                     <strong>Aevum</strong>
                     <span className="muted text-small">
-                      {m.mode} · {m.claims?.[0]?.confidence} confidence
+                      {m.mode} · {m.confidence || m.claims?.[0]?.confidence}{" "}
+                      confidence
                     </span>
                   </div>
                   {m.mode_detail && (
@@ -133,11 +135,49 @@ export function AIPage() {
                       {m.mode_detail}
                     </p>
                   )}
-                  <p>{m.answer}</p>
+                  <p className="ai-summary">{m.answer}</p>
+                  {m.claims?.length > 0 && (
+                    <div className="ai-claims">
+                      {m.claims.map((claim: RecordData, index: number) => (
+                        <section
+                          key={index}
+                          className={"ai-claim " + claim.kind}
+                        >
+                          <span>{claim.kind || "grounded explanation"}</span>
+                          <p>{claim.text}</p>
+                          <small>
+                            {claim.source_ids?.length || 0} linked{" "}
+                            {(claim.source_ids?.length || 0) === 1
+                              ? "source"
+                              : "sources"}
+                            {" · "}
+                            {claim.confidence} confidence
+                          </small>
+                        </section>
+                      ))}
+                    </div>
+                  )}
+                  {m.action_items?.length > 0 && (
+                    <section className="ai-actions">
+                      <strong>Practical next steps</strong>
+                      {m.action_items.map((item: string) => (
+                        <div key={item}>
+                          <CheckCircle2 size={14} />
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </section>
+                  )}
+                  {m.medical_boundary && (
+                    <p className="ai-medical-boundary">{m.medical_boundary}</p>
+                  )}
                   <div className="claim-sources">
                     <button onClick={() => go("data")}>
                       <Database size={13} />
-                      {m.claims?.[0]?.observation_ids.length || 0} measurements
+                      {m.provenance?.observation_ids?.length ||
+                        m.claims?.[0]?.observation_ids?.length ||
+                        0}{" "}
+                      measurements
                     </button>
                     {m.evidence?.length > 0 && (
                       <button
@@ -173,9 +213,31 @@ export function AIPage() {
                     <Badge>{m.claims?.[0]?.model_version}</Badge>
                   </div>
                   <details className="claim-details">
-                    <summary>Inspect claim provenance</summary>
-                    <pre>{JSON.stringify(m.claims, null, 2)}</pre>
+                    <summary>Inspect sources used for this answer</summary>
+                    <div className="ai-source-list">
+                      {m.source_cards?.map((source: RecordData) => (
+                        <div key={source.source_id}>
+                          <strong>{source.source_id}</strong>
+                          <span>
+                            {source.source_type?.replaceAll("_", " ")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </details>
+                  {m.suggestions?.length > 0 && (
+                    <div className="ai-follow-ups">
+                      {m.suggestions.map((suggestion: string) => (
+                        <button
+                          key={suggestion}
+                          onClick={() => ask(suggestion)}
+                        >
+                          {suggestion}
+                          <ArrowUpRight size={13} />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </article>
             </div>
@@ -184,7 +246,7 @@ export function AIPage() {
         {sending && (
           <div className="assistant-thinking" role="status">
             <Sparkles size={17} />
-            Reading the relevant measurements…
+            Connecting your data and evidence…
             <LoaderCircle size={15} className="spin" />
           </div>
         )}
@@ -242,9 +304,9 @@ export function AIPage() {
         </p>
       )}
       <p className="ai-footnote">
-        Explanations come from your structured data. Model routing is optional;
-        all claims come from structured retrieval. The guide does not diagnose
-        or prescribe.
+        Ask uses a consent-gated, question-relevant view of your structured
+        Twin. Every displayed claim must link to that context. It does not
+        diagnose or prescribe.
         {voice.supported &&
           " Voice questions are transcribed by your browser’s speech service and sent like typed text."}
       </p>

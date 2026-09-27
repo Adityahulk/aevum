@@ -45,7 +45,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-gpt-6-luna}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_SERVICE_TIER: ${OPENAI_SERVICE_TIER:-}
     depends_on:
       redis: {condition: service_healthy}
     healthcheck:

@@ -36,7 +36,7 @@ Desktop (1440px) and mobile (390px) screens were inspected. No horizontal page o
 - **PDF breadth:** text-based reports are parsed conservatively. Scanned/complex reports require manual review and entry; an OCR service is not implemented or falsely represented as working.
 - **Genomics breadth:** consumer files are validated with explicit builds, but the annotation panel is narrow and confirmation-limited. This is not a clinical sequencing interpretation platform or a validated genetic risk model.
 - **Live Oura:** OAuth, refresh, daily sync and import paths are implemented. Real account/provider integration has not been exercised without credentials. Export import is functional and tested.
-- **External LLM:** the optional provider adapter is implemented and tested with an HTTP mock. No paid provider call was made. It routes read-only retrieval; it cannot generate authoritative medical facts. Local deterministic explanations are fully usable and clearly labeled.
+- **Ask LLM:** the provider adapter, strict answer contract, context privacy boundary and citation allowlist are tested with HTTP mocks. No paid provider call is made during the test suite. Ask requires configured model credentials; it has no deterministic chatbot fallback.
 - **Deployment services:** Docker/PostgreSQL/TimescaleDB/pgvector/S3/Redis configuration is supplied. This environment did not have a functioning Docker daemon or Compose plugin, so the container topology has not been claimed as runtime-verified.
 - **Pilot operations:** public TLS, secrets/key rotation, backup/restore, email verification/recovery, monitoring, jurisdictional compliance review and multi-instance worker coordination remain operator release work. No claim of certification or production deployment is made.
 

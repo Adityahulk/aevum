@@ -414,7 +414,7 @@ export function SettingsPage() {
               [
                 "ai",
                 "Personalized explanations",
-                "Use selected structured context for grounded explanations. If configured, question text is sent to an external routing model. Raw records and genotypes stay local.",
+                "Use a question-relevant view of measurements, Twin interpretations, reported context, curated genomic findings and intervention history for grounded AI explanations. Source files, raw genotype rows and account identity are not sent.",
               ],
               [
                 "clinician",

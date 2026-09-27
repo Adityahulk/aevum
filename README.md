@@ -14,7 +14,7 @@ Aevum turns private health measurements into an auditable, longitudinal Biologic
 - **A versioned Biological Twin:** domain-level trajectories, source provenance, missingness/freshness, strengths, priorities and Twin history.
 - **Biology made inspectable:** observed signals connect to phenotype, process, pathway, hallmark and cited evidence, each with an explicit evidence tier.
 - **Action with learning:** goal-aware recommendations, safety gates, frozen experiment baselines, adherence and confounder capture, and conservative response evaluation.
-- **Grounded explanations:** every guide response resolves to stored observations, relationships and curated references. The optional language-model adapter can only select a bounded read-only retrieval route.
+- **Grounded personal guide:** Ask Aevum explains biomarkers, wearable trends, lifestyle context, curated genomic findings, biological pathways and intervention rationale. Every model claim must cite a source in the question-relevant Twin context.
 
 ## System design
 
@@ -28,12 +28,14 @@ flowchart LR
   API --> Science[Python scientific service]
   Science --> Rules[Baselines, trends, quality and response rules]
   Science --> Evidence[Curated evidence and biological graph]
-  Science -. optional bounded tool selection .-> LLM[External language model]
+  Science --> Context[Question-relevant consent-gated context]
+  Context --> LLM[OpenAI Responses API]
+  LLM --> Guard[Structured output + source validation]
   Wearables[Open Wearables · cloud providers + mobile SDK] --> API
   Exports[Wearable JSON / Apple Health XML or ZIP / CSV] --> API
 ```
 
-The browser never calculates a health state. The Java API owns identity, consent, source ownership, encryption and persistence; the Python service owns validation, features, domain rules, intervention ranking and response evaluation. Raw reports and genomic arrays do not enter the external language-model path.
+The browser never calculates a health state. The Java API owns identity, consent, source ownership, encryption and persistence; the Python service owns validation, features, domain rules, intervention ranking, response evaluation and Ask context assembly. Ask sends a compact structured projection, never source files, account identity or raw genotype rows. An answer is displayed only after its source identifiers validate against that projection.
 
 ## From measurement to learning
 
@@ -141,7 +143,7 @@ For a managed MVP deployment, follow the [Railway deployment runbook](docs/RAILW
 ## Optional live integrations
 
 - **Wearables:** Open Wearables is the single live connection service. Follow [the Railway and mobile runbook](docs/OPEN_WEARABLES.md) to deploy it, enable approved providers, and provision the server credentials. A missing connection service is clearly reported; file imports remain available.
-- **External AI routing:** set `OPENAI_API_KEY` on analytics (recommended `LLM_MODEL=gpt-6-luna`). The language model selects a bounded read-only retrieval tool; the system renders authoritative structured claims with provenance. Only the question and tool schemas leave the service, not the full health record or raw genotype. Invalid tool calls, timeouts, or unavailable credentials fall back to the clearly identified deterministic guide. Free-form medical generation is deliberately excluded. Anthropic remains available when `OPENAI_API_KEY` is unset.
+- **Ask Aevum:** set `OPENAI_API_KEY` and `LLM_MODEL=gpt-6-luna` on the private analytics service. One Responses API call produces a concise structured answer over the question-relevant Twin projection. Invalid citations, malformed output, timeouts and missing credentials return an unavailable state; there is no templated chatbot fallback.
 - **Scientific retrieval:** a small curated, cited corpus with structured metadata plus 384-dimensional signed-hash vectors. The PostgreSQL profile uses pgvector; local review uses the identical cosine representation. These are transparent lexical vectors over curated summaries, not a claim of broad literature search or learned semantic embeddings.
 
 ## Scientific scope

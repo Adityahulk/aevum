@@ -10,14 +10,16 @@ flowchart LR
   Java --> Objects[Encrypted immutable artifacts]
   Java --> Python[Python scientific service]
   Python --> Corpus[Curated evidence / lexical vectors]
-  Python -. optional question routing .-> LLM[External LLM]
+  Python --> AskContext[Question-relevant Twin projection]
+  AskContext --> LLM[OpenAI Responses API]
+  LLM --> Validator[Schema + citation validator]
   Java --> Twin[Immutable Twin snapshots]
   Twin --> Experiment[Baseline / experiment / response]
   Experiment --> Twin
   Wearables[Open Wearables\ncloud providers + native SDK] --> Java
 ```
 
-The browser is an interface; it does not calculate authoritative health states. Spring Boot owns identity, consent, source ownership, transactions, persistence, events and the server-only Open Wearables credential. Python owns canonical validation, scientific features, phenotype rules, evidence, ranking, response calculations and bounded explanations. Raw reports and genotype arrays never enter the external language model. The separate wearable service owns provider OAuth credentials and native device token refresh; its integration boundary is documented in [Open Wearables integration](OPEN_WEARABLES.md).
+The browser is an interface; it does not calculate authoritative health states. Spring Boot owns identity, consent, source ownership, transactions, persistence, events and the server-only Open Wearables credential. Python owns canonical validation, scientific features, phenotype rules, evidence, ranking, response calculations and Ask context assembly. Source reports, account identity and raw genotype rows never enter the external language model. The separate wearable service owns provider OAuth credentials and native device token refresh; its integration boundary is documented in [Open Wearables integration](OPEN_WEARABLES.md).
 
 ## Profiles
 
@@ -70,9 +72,13 @@ The initial worker is designed for one API instance. Horizontal scaling requires
 
 ## AI and retrieval
 
-The local grounded guide selects relevant domain, biomarker, context, recommendation or experiment information and renders structured claims with observation, relationship and evidence IDs. It is explicitly labeled as deterministic.
+Ask Aevum is an LLM-generated explanation layer over the authoritative structured model. The API verifies health and AI consent, resolves the person from the session, and passes the current Twin, reported context, ranked interventions, experiments and consent-gated curated genomic findings to the private analytics service.
 
-The optional external adapter prefers the [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat) with `gpt-6-luna` (`reasoning_effort=none` for function calling) to choose one of five bounded read-only retrieval routes. When `OPENAI_API_KEY` is unset, the [Anthropic Messages API](https://platform.claude.com/docs/en/api/messages/create) remains available. Tool names and domain arguments are validated against enums; arbitrary tools or free-form model claims are rejected. The selected question and schemas are transmitted, not raw records. Output sentences still come from the structured scientific layer. Missing keys, provider errors and malformed tool choices fall back safely. A live provider call was not made without operator credentials.
+The analytics service selects the question's domain and assembles a compact context of relevant domain state, verified measurement summaries, biological relationships, lifestyle/medical context, intervention rationale, response records and curated evidence. Each item receives an opaque source identifier. Source files, raw genotype rows, unrelated measurements and account identity are excluded.
+
+The private service makes one request to the OpenAI Responses API with storage disabled and a strict JSON Schema. The model must distinguish observation, interpretation, guidance and uncertainty and cite exact context identifiers for every claim. The server rejects the entire answer if any citation is absent or unknown. It then derives displayed observation, relationship and evidence provenance from the cited server-side sources. Missing credentials, provider failures and invalid output return a clear unavailable response; no deterministic text is presented as a chatbot answer.
+
+The single-call design, question-aware context pruning, capped output and configurable small model reduce latency. `OPENAI_SERVICE_TIER=fast` is an optional paid latency optimization where supported; standard processing remains the default.
 
 Evidence retrieval is limited to curated source summaries. Structured metadata and signed feature-hash vectors are both retained. The optional pgvector query uses the same representation as local cosine search; vectors are lexical features, not a learned semantic model. There is no autonomous, unreviewed paper-to-intervention publishing pipeline.
 

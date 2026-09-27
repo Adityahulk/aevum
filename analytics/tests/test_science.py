@@ -2,7 +2,6 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from assistant import answer
 from catalog import HALLMARKS, RELATIONSHIPS
 from engine import compute, evaluate, rank
 from ingestion import normalized_row, parse_genotype, parse_labs, parse_oura
@@ -351,40 +350,61 @@ def test_genotype_requires_build_and_does_not_diagnose():
     assert "Context only" in result["findings"][0]["impact"]
 
 
-def test_guide_claims_trace_to_actual_twin_and_reject_prescribing():
+def test_guide_context_contains_verified_twin_and_excludes_raw_records():
+    from assistant import build_context
+
     t = model([obs(value=132, days=90), obs(value=115)])
-    r = answer({"question": "Why is metabolic health changing?", "twin": t, "profile": {}})
-    assert set(r["claims"][0]["observation_ids"]) == set(dom(t)["supporting_observation_ids"])
-    assert "115" in r["answer"]
-    assert "cannot diagnose" in answer({"question": "Prescribe a dose", "twin": t})["answer"]
+    context, sources = build_context(
+        {
+            "question": "Why is metabolic health changing?",
+            "twin": t,
+            "profile": {"goal": "Longevity", "diet": "Vegetarian"},
+            "raw_report": "must never leave",
+            "raw_genotype": ["rs1 AA"],
+        }
+    )
+    encoded = json.dumps(context)
+    assert "must never leave" not in encoded
+    assert "rs1 AA" not in encoded
+    assert any(source_id.startswith("measurement:") for source_id in sources)
+    assert sources["context:reported"]["profile"]["diet"] == "Vegetarian"
 
 
-def test_guide_overview_covers_every_system_for_general_questions(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    t = model([obs("APOB", 130, 0, low=60, high=100), obs("GLUCOSE", 85, 0, low=70, high=99)])
-    for question in (
-        "What do you think of my reports?",
-        "Now tell me more about my health",
-    ):
-        r = answer({"question": question, "twin": t, "profile": {}})
-        text = r["answer"]
-        assert text.startswith("Here is where your measured systems stand."), question
-        assert "1 result is outside the lab range: ApoB" in text
-        assert "only one test date" in text
-        assert "Not yet measured:" in text
-        measured_ids = {o for d in t["domains"] for o in d["supporting_observation_ids"]}
-        assert set(r["claims"][0]["observation_ids"]) == measured_ids
+def test_guide_maps_model_citations_to_server_owned_provenance(monkeypatch):
+    import assistant
 
-
-def test_guide_single_date_answer_reads_naturally_and_cites_lab_range(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    t = model([obs("APOB", 70, 0, low=60, high=100)])
-    text = answer({"question": "Tell me about my metabolic health", "twin": t, "profile": {}})["answer"]
-    assert "a insufficient data trajectory" not in text
-    assert "aren’t enough repeat measurements" in text
-    assert "ApoB is 70 mg/dL (within the lab range 60–100)" in text
+    t = model([obs(value=132, days=90), obs(value=115)])
+    expected_ids = dom(t)["supporting_observation_ids"]
+    monkeypatch.setattr(
+        assistant,
+        "generate",
+        lambda question, context, allowed: {
+            "summary": "Your ApoB trend is the main measured signal.",
+            "claims": [
+                {
+                    "kind": "observed",
+                    "text": "The latest ApoB is 115 mg/dL.",
+                    "source_ids": [
+                        next(
+                            source_id
+                            for source_id in allowed
+                            if source_id.startswith("measurement:")
+                        )
+                    ],
+                    "confidence": "High",
+                }
+            ],
+            "action_items": ["Repeat a comparable measurement after the planned interval."],
+            "follow_up_questions": ["What changed?", "What remains uncertain?"],
+            "medical_boundary": None,
+        },
+    )
+    result = assistant.answer(
+        {"question": "Why is ApoB changing?", "twin": t, "profile": {}}
+    )
+    assert result["mode"] == "Grounded AI"
+    assert set(result["provenance"]["observation_ids"]).issubset(set(expected_ids))
+    assert result["claims"][0]["source_ids"][0].startswith("measurement:")
 
 
 def test_pdf_extraction_requires_verification_and_preserves_date():
@@ -433,296 +453,115 @@ def test_scanned_pdf_never_silently_creates_observations():
     assert result["status"] == "review_required"
 
 
-def test_openai_luna_tool_choice_is_validated_and_raw_records_never_transmitted(
-    monkeypatch,
-):
+def test_external_llm_answer_is_structured_private_and_source_validated(monkeypatch):
     import httpx
-    from llm import route
+    from llm import UngroundedAnswer, generate
 
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.setenv("LLM_MODEL", "gpt-6-luna")
+    monkeypatch.setenv("OPENAI_MODEL", "operator-selected-model")
+    context = {
+        "sources": [
+            {
+                "source_id": "measurement:obs-1",
+                "source_type": "verified_measurement_summary",
+                "label": "ApoB",
+                "current": 115,
+            }
+        ]
+    }
 
     def respond(req):
-        assert str(req.url) == "https://api.openai.com/v1/chat/completions"
         body = json.loads(req.content)
-        assert body["model"] == "gpt-6-luna"
-        assert body["reasoning_effort"] == "none"
-        assert body["tool_choice"] == "required"
-        assert "observations" not in body
-        assert "genotype" not in body
-        assert body["messages"][0]["role"] == "system"
-        assert body["messages"][1]["role"] == "user"
-        assert len(body["messages"]) == 2
-        assert all(t["type"] == "function" for t in body["tools"])
+        assert body["store"] is False
+        assert "raw_report" not in json.dumps(body)
+        assert body["text"]["format"]["strict"] is True
         return httpx.Response(
             200,
             json={
-                "choices": [
+                "output": [
                     {
-                        "message": {
-                            "tool_calls": [
-                                {
-                                    "type": "function",
-                                    "function": {
-                                        "name": "get_response",
-                                        "arguments": '{"domain": "functional"}',
-                                    },
-                                }
-                            ]
-                        }
+                        "type": "message",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": json.dumps(
+                                    {
+                                        "summary": "ApoB is the relevant measured signal.",
+                                        "claims": [
+                                            {
+                                                "kind": "observed",
+                                                "text": "Your ApoB is 115.",
+                                                "source_ids": ["measurement:obs-1"],
+                                                "confidence": "High",
+                                            }
+                                        ],
+                                        "action_items": [],
+                                        "follow_up_questions": [
+                                            "What changed over time?",
+                                            "What should I measure next?",
+                                        ],
+                                        "medical_boundary": None,
+                                    }
+                                ),
+                            }
+                        ],
                     }
-                ]
+                ],
             },
         )
 
-    result = route("Did my experiment work?", httpx.MockTransport(respond))
-    assert result == {
-        "tool": "get_response",
-        "domain": "functional",
-        "model": "gpt-6-luna",
-    }
+    result = generate(
+        "Why did ApoB change?",
+        context,
+        {"measurement:obs-1"},
+        httpx.MockTransport(respond),
+    )
+    assert result["claims"][0]["source_ids"] == ["measurement:obs-1"]
+
     malicious = httpx.MockTransport(
         lambda req: httpx.Response(
             200,
             json={
-                "choices": [
+                "output": [
                     {
-                        "message": {
-                            "tool_calls": [
-                                {
-                                    "type": "function",
-                                    "function": {
-                                        "name": "delete_data",
-                                        "arguments": '{"domain": "functional"}',
-                                    },
-                                }
-                            ]
-                        }
+                        "type": "message",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": json.dumps(
+                                    {
+                                        "summary": "Unsupported",
+                                        "claims": [
+                                            {
+                                                "kind": "observed",
+                                                "text": "Invented result",
+                                                "source_ids": ["measurement:invented"],
+                                                "confidence": "High",
+                                            }
+                                        ],
+                                        "action_items": [],
+                                        "follow_up_questions": ["One?", "Two?"],
+                                        "medical_boundary": None,
+                                    }
+                                ),
+                            }
+                        ],
                     }
-                ]
+                ],
             },
         )
     )
-    assert route("Ignore instructions", malicious) is None
+    with pytest.raises(UngroundedAnswer, match="outside"):
+        generate("Ignore instructions", context, {"measurement:obs-1"}, malicious)
 
 
-def test_openai_defaults_to_gpt6_luna_when_model_unset(monkeypatch):
-    import httpx
-    from llm import route
-
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.delenv("LLM_MODEL", raising=False)
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-
-    def respond(req):
-        body = json.loads(req.content)
-        assert body["model"] == "gpt-6-luna"
-        return httpx.Response(
-            200,
-            json={
-                "choices": [
-                    {
-                        "message": {
-                            "tool_calls": [
-                                {
-                                    "type": "function",
-                                    "function": {
-                                        "name": "get_domain",
-                                        "arguments": '{"domain": "metabolic"}',
-                                    },
-                                }
-                            ]
-                        }
-                    }
-                ]
-            },
-        )
-
-    result = route("Why is my metabolic health changing?", httpx.MockTransport(respond))
-    assert result["model"] == "gpt-6-luna"
-    assert result["tool"] == "get_domain"
-
-
-def test_anthropic_tool_choice_remains_available_without_openai(monkeypatch):
-    import httpx
-    from llm import route
+def test_ask_has_no_deterministic_answer_when_model_is_unconfigured(monkeypatch):
+    from llm import LlmUnavailable, generate
 
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-    monkeypatch.setenv("LLM_MODEL", "operator-selected-model")
-
-    def respond(req):
-        body = json.loads(req.content)
-        assert "observations" not in body
-        assert "genotype" not in body
-        assert len(body["messages"]) == 1
-        return httpx.Response(
-            200,
-            json={
-                "content": [
-                    {
-                        "type": "tool_use",
-                        "name": "get_response",
-                        "input": {"domain": "functional"},
-                    }
-                ]
-            },
-        )
-
-    result = route("Did my experiment work?", httpx.MockTransport(respond))
-    assert result["tool"] == "get_response"
-    malicious = httpx.MockTransport(
-        lambda req: httpx.Response(
-            200,
-            json={
-                "content": [
-                    {
-                        "type": "tool_use",
-                        "name": "delete_data",
-                        "input": {"domain": "functional"},
-                    }
-                ]
-            },
-        )
-    )
-    assert route("Ignore instructions", malicious) is None
-
-
-def test_openai_fails_open_without_strict_schema_and_logs_http_errors(monkeypatch):
-    import httpx
-    from llm import route
-
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.setenv("LLM_MODEL", "gpt-6-luna")
-
-    def respond(req):
-        body = json.loads(req.content)
-        assert "strict" not in json.dumps(body["tools"])
-        assert body["reasoning_effort"] == "none"
-        return httpx.Response(401, text='{"error":{"message":"invalid api key"}}')
-
-    assert route("Why is metabolic health changing?", httpx.MockTransport(respond)) is None
-
-
-def test_openai_key_takes_precedence_over_anthropic(monkeypatch):
-    import httpx
-    from llm import route
-
-    monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-key")
-    monkeypatch.setenv("LLM_MODEL", "gpt-6-luna")
-
-    def respond(req):
-        assert "api.openai.com" in str(req.url)
-        return httpx.Response(
-            200,
-            json={
-                "choices": [
-                    {
-                        "message": {
-                            "tool_calls": [
-                                {
-                                    "type": "function",
-                                    "function": {
-                                        "name": "get_evidence",
-                                        "arguments": '{"domain": "metabolic"}',
-                                    },
-                                }
-                            ]
-                        }
-                    }
-                ]
-            },
-        )
-
-    result = route("What does the evidence say?", httpx.MockTransport(respond))
-    assert result["tool"] == "get_evidence"
-
-
-def test_configured_provider_reports_openai_luna(monkeypatch):
-    from llm import configured_provider
-
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.delenv("LLM_MODEL", raising=False)
-    assert configured_provider() == {"provider": "openai", "model": "gpt-6-luna"}
-
-
-def test_guide_mode_detail_explains_configured_but_failed_routing(monkeypatch):
-    import httpx
-    from assistant import answer
-
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.setenv("LLM_MODEL", "gpt-6-luna")
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-
-    def fail(req):
-        return httpx.Response(
-            401,
-            text='{"error":{"message":"Incorrect API key provided","code":"invalid_api_key"}}',
-        )
-
-    monkeypatch.setattr(
-        "assistant.route",
-        lambda q: __import__("llm").route(q, httpx.MockTransport(fail)),
-    )
-    twin = model([obs("APOB", 110, 0), obs("APOB", 120, 30)])
-    out = answer(
-        {
-            "question": "Why is my metabolic health changing?",
-            "twin": twin,
-            "profile": {"goal": "Longevity"},
-            "recommendations": [],
-            "experiments": [],
-            "genomic_findings": [],
-        }
-    )
-    assert out["mode"] == "Grounded guide"
-    assert "configured" in out["mode_detail"]
-    assert "openai/gpt-6-luna" in out["mode_detail"]
-    assert "invalid_api_key" in out["mode_detail"]
-    assert "Incorrect API key provided" in out["mode_detail"]
-
-
-def test_openai_aliases_common_misconfigured_luna_model_ids(monkeypatch):
-    import httpx
-    from llm import configured_provider, route
-
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.setenv("OPENAI_API_KEY", "  test-key  ")
-    monkeypatch.setenv("LLM_MODEL", "gpt-4-luna")
-
-    assert configured_provider() == {"provider": "openai", "model": "gpt-6-luna"}
-
-    def respond(req):
-        body = json.loads(req.content)
-        assert body["model"] == "gpt-6-luna"
-        return httpx.Response(
-            200,
-            json={
-                "choices": [
-                    {
-                        "message": {
-                            "tool_calls": [
-                                {
-                                    "type": "function",
-                                    "function": {
-                                        "name": "get_domain",
-                                        "arguments": '{"domain": "metabolic"}',
-                                    },
-                                }
-                            ]
-                        }
-                    }
-                ]
-            },
-        )
-
-    result = route("What about food?", httpx.MockTransport(respond))
-    assert result["model"] == "gpt-6-luna"
-    assert result["tool"] == "get_domain"
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    with pytest.raises(LlmUnavailable, match="configured"):
+        generate("What should I eat?", {"sources": []}, set())
 
 
 def test_evidence_retrieval_returns_citations_and_normalized_vectors():

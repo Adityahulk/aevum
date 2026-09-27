@@ -1,7 +1,7 @@
 import os
 import secrets
 
-from assistant import answer
+from assistant import LlmUnavailable, UngroundedAnswer, answer
 from cache import public_catalog
 from catalog import (
     CONCEPTS,
@@ -110,7 +110,20 @@ def response(p: dict):
 
 @app.post("/answer")
 def guide(p: dict):
-    return answer(p)
+    try:
+        return answer(p)
+    except LlmUnavailable as exc:
+        return JSONResponse(
+            {"detail": str(exc), "code": "ask_model_unavailable"}, status_code=503
+        )
+    except UngroundedAnswer:
+        return JSONResponse(
+            {
+                "detail": "Ask Aevum could not verify the model response against your Twin.",
+                "code": "ask_answer_ungrounded",
+            },
+            status_code=502,
+        )
 
 
 @app.get("/evidence/corpus")

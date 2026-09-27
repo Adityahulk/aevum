@@ -357,9 +357,10 @@ export function Onboarding() {
               <span>
                 <strong>Enable personalized explanations</strong>
                 <small>
-                  Optional. Let the guide explain selected structured health
-                  information. When configured, your question text is sent to an
-                  external routing model; raw records stay local.
+                  Let Ask Aevum explain a question-relevant view of your
+                  structured health information using an external language
+                  model. Source files, raw genotype rows and account identity
+                  are not sent.
                 </small>
               </span>
             </label>

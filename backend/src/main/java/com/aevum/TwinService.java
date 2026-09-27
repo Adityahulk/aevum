@@ -270,11 +270,17 @@ class TwinController {
     payload.put("question", q);
     payload.put("domain", b.get("domain"));
     payload.put("twin", twins.current(p));
-    payload.put("profile", s.latest(p, "profile"));
+    var personalContext = twins.payload(p);
+    payload.put("profile", personalContext.get("profile"));
+    payload.put("lifestyle_facts", personalContext.get("lifestyle_facts"));
     payload.put("recommendations", twins.ranked(p).get("recommendations"));
     payload.put("experiments", s.list(p, "experiment"));
+    var priorClaims = s.list(p, "claim");
     payload.put(
-        "genomic_findings", auth.consent(p, "genomics") ? s.list(p, "genomic_finding") : List.of());
+        "conversation_history",
+        priorClaims.subList(Math.max(0, priorClaims.size() - 6), priorClaims.size()));
+    payload.put(
+        "genomic_findings", personalContext.get("genomic_findings"));
     var answer = science.post("/answer", payload);
     s.add(p, "claim", answer);
     s.audit(p, "AssistantUsed", answer.get("id").toString());

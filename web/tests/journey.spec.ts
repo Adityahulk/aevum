@@ -44,9 +44,72 @@ test("sample Twin: provenance, biology, grounded explanation, experiment evaluat
     }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.route("**/api/ai", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: "ask-test",
+        question: "Explain the biology behind my main issue.",
+        answer:
+          "Your recent ApoB and fasting insulin pattern is the main measured reason this domain needs attention.",
+        mode: "Grounded AI",
+        confidence: "High",
+        claims: [
+          {
+            kind: "observed",
+            text: "ApoB remains above its source interval and fasting insulin increased from its personal baseline.",
+            source_ids: ["measurement:apob", "measurement:insulin"],
+            confidence: "High",
+            observation_ids: ["apob", "insulin"],
+            relationship_ids: [],
+            evidence_ids: [],
+            model_version: "interpretable-0.3.0",
+          },
+          {
+            kind: "interpretation",
+            text: "Together these signals are consistent with the Twin's cardiometabolic pattern; they do not identify a single cause.",
+            source_ids: ["domain:metabolic"],
+            confidence: "Moderate",
+            observation_ids: [],
+            relationship_ids: [],
+            evidence_ids: [],
+            model_version: "interpretable-0.3.0",
+          },
+        ],
+        provenance: {
+          observation_ids: ["apob", "insulin"],
+          relationship_ids: [],
+          evidence_ids: [],
+          twin_version: 2,
+        },
+        source_cards: [
+          {
+            source_id: "measurement:apob",
+            source_type: "verified_measurement_summary",
+          },
+          {
+            source_id: "measurement:insulin",
+            source_type: "verified_measurement_summary",
+          },
+          { source_id: "domain:metabolic", source_type: "computed_domain" },
+        ],
+        evidence: [],
+        action_items: [
+          "Keep the next change measurable and repeat comparable markers after the planned interval.",
+        ],
+        suggestions: [
+          "What should I eat?",
+          "Why was my first intervention ranked highest?",
+        ],
+        medical_boundary: null,
+      }),
+    });
+  });
   await page.getByRole("link", { name: "Ask Aevum" }).click();
   await page
-    .getByRole("button", { name: "Why is my metabolic health changing?" })
+    .getByRole("button", { name: "Explain the biology behind my main issue." })
     .click();
   await expect(page.locator(".assistant-message")).toContainText("ApoB");
   await expect(page.locator(".claim-sources")).toContainText("measurements");
