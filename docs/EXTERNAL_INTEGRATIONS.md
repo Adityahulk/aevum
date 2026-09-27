@@ -24,7 +24,7 @@ The language model is used only to choose a bounded, read-only retrieval route. 
    If `LLM_MODEL` is omitted while `OPENAI_API_KEY` is set, analytics defaults to `gpt-6-luna`. Chat Completions function calling for Luna requires `reasoning_effort=none`; the analytics adapter sets that automatically.
 
 4. Redeploy `analytics` and ask a Guide question from a sample account.
-5. Confirm the reply mode is `LLM-routed guide`. If the UI still shows `Grounded guide`, read the new failure detail under the answer (for example `invalid_api_key` or `model_not_found`) and check Railway `analytics` logs for `LLM routing failed`. The deterministic guide still answers when the key is temporarily removed.
+5. Confirm the reply mode is `LLM-routed guide` for biology questions. Greetings such as “Hey” are handled locally and will not dump biomarkers. If biology questions still show `Grounded guide`, read the failure detail under the answer and check Railway `analytics` logs for `LLM routing failed` or `OpenAI routing selected`. After redeploy you should see `INFO:aevum.llm:...` / `INFO:aevum.guide:...` lines on each Ask Aevum request — not only Uvicorn boot messages.
 
 Common failure causes when `LLM_MODEL=gpt-6-luna` is already set:
 

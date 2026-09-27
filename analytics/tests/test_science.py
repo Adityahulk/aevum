@@ -377,6 +377,18 @@ def test_guide_overview_covers_every_system_for_general_questions(monkeypatch):
         assert set(r["claims"][0]["observation_ids"]) == measured_ids
 
 
+def test_guide_greeting_does_not_dump_metabolic_biomarkers(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    t = model([obs("APOB", 70, 0, low=60, high=100), obs("GLUCOSE", 79, 0, low=70, high=99)])
+    out = answer({"question": "Hey", "twin": t, "profile": {}})
+    assert out["mode"] == "Grounded guide"
+    assert out["retrieval_tool"] == "orientation"
+    assert "ApoB" not in out["answer"]
+    assert "Twin guide" in out["answer"]
+    assert "Greeting handled locally" in out["mode_detail"]
+
+
 def test_guide_single_date_answer_reads_naturally_and_cites_lab_range(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
@@ -684,6 +696,44 @@ def test_guide_mode_detail_explains_configured_but_failed_routing(monkeypatch):
     assert "openai/gpt-6-luna" in out["mode_detail"]
     assert "invalid_api_key" in out["mode_detail"]
     assert "Incorrect API key provided" in out["mode_detail"]
+
+
+def test_openai_routing_success_logs_selected_tool(monkeypatch, caplog):
+    import logging
+
+    import httpx
+    from llm import route
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_MODEL", "gpt-6-luna")
+
+    def respond(req):
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "tool_calls": [
+                                {
+                                    "type": "function",
+                                    "function": {
+                                        "name": "get_domain",
+                                        "arguments": '{"domain": "metabolic"}',
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+        )
+
+    with caplog.at_level(logging.INFO, logger="aevum.llm"):
+        result = route("What about food?", httpx.MockTransport(respond))
+    assert result["tool"] == "get_domain"
+    assert any("OpenAI routing selected tool=get_domain" in r.message for r in caplog.records)
 
 
 def test_openai_aliases_common_misconfigured_luna_model_ids(monkeypatch):

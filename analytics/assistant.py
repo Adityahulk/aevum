@@ -1,3 +1,4 @@
+import logging
 import re
 import uuid
 
@@ -5,8 +6,17 @@ from catalog import CONCEPTS, EVIDENCE, MODEL_VERSION
 from llm import configured_provider, last_routing_error, route
 from retrieval import search
 
+log = logging.getLogger("aevum.guide")
+
 OVERVIEW = re.compile(
     r"\b(reports?|results?|overall|summary|summari[sz]e|everything|how am i|my health)\b"
+)
+GREETING = re.compile(
+    r"^\s*("
+    r"hi|hey|hello|howdy|yo|sup|hiya|thanks|thank you|thx|ok|okay|"
+    r"good (morning|afternoon|evening)|help|help me"
+    r")[\s!.?,]*$",
+    re.I,
 )
 # Domain display names include generic words like "health" / "profile" that must not
 # hijack broad questions ("tell me about my health") into a single system.
@@ -83,13 +93,33 @@ def _overview(twin):
     return text + "Ask about any system for more detail. Coverage and measurement timing limit certainty."
 
 
+def _orientation(twin):
+    measured = [d for d in twin["domains"] if d["signals"]]
+    count = len(measured)
+    lead = (
+        f"You currently have verified measurements in {count} "
+        f"{'system' if count == 1 else 'systems'}."
+        if count
+        else "You do not have verified measurements yet."
+    )
+    return (
+        "Hi — I’m your Twin guide. I explain verified measurements, trajectories and evidence; "
+        "I don’t chat generally or invent medical advice. "
+        + lead
+        + " Ask about a system, your priorities, food and metabolic markers, or what to measure next."
+    )
+
+
 def answer(payload):
     q = str(payload.get("question", ""))[:2000]
-    lower = q.lower()
+    lower = q.lower().strip()
     twin = payload["twin"]
     profile = payload.get("profile", {})
     selected = payload.get("domain")
-    routed = route(q)
+    orientation = bool(GREETING.match(lower)) and not payload.get("domain")
+    # Greetings are not health questions; skip the LLM so "Hey" cannot become a
+    # metabolic dump via the old "metabolic if unclear" routing habit.
+    routed = None if orientation else route(q)
     provider = configured_provider()
     if routed:
         selected = selected or routed["domain"]
@@ -101,7 +131,10 @@ def answer(payload):
             lower += " genomic context"
     mentioned = _mentioned_domain(lower, twin)
     overview = bool(
-        not payload.get("domain") and not mentioned and OVERVIEW.search(lower)
+        not orientation
+        and not payload.get("domain")
+        and not mentioned
+        and OVERVIEW.search(lower)
     )
     selected = selected or mentioned
     d = next((d for d in twin["domains"] if d["id"] == selected), None)
@@ -113,7 +146,12 @@ def answer(payload):
     ids = d.get("supporting_observation_ids", [])
     rels = [r for r in twin.get("relationships", []) if r["domain"] == d["id"]]
     eids = list(dict.fromkeys(e for r in rels for e in r["evidence_ids"]))
-    if re.search(
+    if orientation:
+        text = _orientation(twin)
+        ids = []
+        rels = []
+        eids = []
+    elif re.search(
         r"\b(dose|dosage|prescribe|diagnose|stop my medication|cure|reverse aging)\b",
         lower,
     ):
@@ -189,35 +227,66 @@ def answer(payload):
         if not d["signals"]:
             text += "There is not enough verified data to interpret this domain. "
         text += "Coverage and measurement timing limit certainty. A source result and an inferred mechanism are different layers of evidence."
+    tool = "orientation" if orientation else (routed["tool"] if routed else "get_domain")
+    if routed:
+        mode_detail = (
+            "External intent routing: "
+            + routed["model"]
+            + " → "
+            + routed["tool"]
+            + "/"
+            + routed["domain"]
+            + ". Claims rendered from authoritative structured data."
+        )
+    elif orientation:
+        mode_detail = (
+            "Greeting handled locally without a biomarker dump. "
+            "Ask a biology question to use structured retrieval"
+            + (
+                " or external intent routing ("
+                + provider["provider"]
+                + "/"
+                + provider["model"]
+                + ")."
+                if provider
+                else "."
+            )
+        )
+    elif provider:
+        mode_detail = (
+            "External routing is configured ("
+            + provider["provider"]
+            + "/"
+            + provider["model"]
+            + ") but the provider call failed"
+            + (
+                " (" + last_routing_error() + ")"
+                if last_routing_error()
+                else " or returned an invalid tool"
+            )
+            + "; using the deterministic guide."
+        )
+    else:
+        mode_detail = (
+            "Deterministic explanations from your structured model; "
+            "external routing is unavailable or unconfigured."
+        )
+    log.info(
+        "guide mode=%s tool=%s domain=%s routed=%s orientation=%s chars=%s",
+        "LLM-routed guide" if routed else "Grounded guide",
+        tool,
+        d["id"],
+        bool(routed),
+        orientation,
+        len(q),
+    )
     return {
         "id": str(uuid.uuid4()),
         "question": q,
         "answer": text,
         "mode": "LLM-routed guide" if routed else "Grounded guide",
-        "mode_detail": (
-            "External intent routing: "
-            + routed["model"]
-            + ". Claims rendered from authoritative structured data."
-        )
-        if routed
-        else (
-            (
-                "External routing is configured ("
-                + provider["provider"]
-                + "/"
-                + provider["model"]
-                + ") but the provider call failed"
-                + (
-                    " (" + last_routing_error() + ")"
-                    if last_routing_error()
-                    else " or returned an invalid tool"
-                )
-                + "; using the deterministic guide."
-            )
-            if provider
-            else "Deterministic explanations from your structured model; external routing is unavailable or unconfigured."
-        ),
-        "retrieval_tool": routed["tool"] if routed else "get_domain",
+        "mode_detail": mode_detail,
+        "retrieval_tool": tool,
         "related_evidence_ids": [e["id"] for e in search(q, 3)],
         "domain": d["id"],
         "claims": [

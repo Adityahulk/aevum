@@ -1,9 +1,17 @@
 """Container entrypoint with a single IPv4/IPv6 listener for Railway."""
 
+import logging
 import os
 import socket
 
 import uvicorn
+
+# Railway only showed Uvicorn boot lines because app loggers were never configured.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s:%(name)s:%(message)s",
+    force=True,
+)
 
 
 if __name__ == "__main__":
