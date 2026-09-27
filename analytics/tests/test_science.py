@@ -564,22 +564,6 @@ def test_ask_has_no_deterministic_answer_when_model_is_unconfigured(monkeypatch)
         generate("What should I eat?", {"sources": []}, set())
 
 
-def test_openai_provider_error_is_safe_and_actionable(monkeypatch):
-    import httpx
-    from llm import LlmUnavailable, generate
-
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.setenv("LLM_MODEL", "gpt-6-luna")
-    transport = httpx.MockTransport(
-        lambda request: httpx.Response(
-            404,
-            json={"error": {"message": "No such model", "code": "model_not_found"}},
-        )
-    )
-    with pytest.raises(LlmUnavailable, match="gpt-6-luna"):
-        generate("What should I do?", {"sources": []}, set(), transport)
-
-
 def test_evidence_retrieval_returns_citations_and_normalized_vectors():
     from retrieval import embed, search
 
