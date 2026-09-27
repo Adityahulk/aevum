@@ -17,7 +17,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from history_import import parse_history
 from ingestion import normalized_row, parse_upload
-from llm import configured_provider
+from llm import configured_provider, last_routing_error
 from retrieval import corpus, embed, search
 
 app = FastAPI(title="Aevum scientific service", version="0.1.0", docs_url=None, redoc_url=None)
@@ -51,6 +51,7 @@ def health():
             "configured": bool(llm),
             "provider": llm["provider"] if llm else None,
             "model": llm["model"] if llm else None,
+            "last_error": last_routing_error(),
         },
     }
 
