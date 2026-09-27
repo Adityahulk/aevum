@@ -34,13 +34,26 @@ public class Science {
     } catch (RestClientResponseException e) {
       int status = e.getStatusCode().value();
       if (status == 502 || status == 503)
-        throw new Api.Failure(
-            503, "Ask Aevum is temporarily unavailable. Your saved data is safe; try again shortly.");
+        throw new Api.Failure(503, askUnavailable(e.getResponseBodyAsString()));
       throw new Api.Failure(422, "The data could not be processed: " + e.getResponseBodyAsString());
     } catch (Exception e) {
       throw new Api.Failure(
           503, "The analysis service is unavailable. Your saved data is safe; try again shortly.");
     }
+  }
+
+  private String askUnavailable(String body) {
+    try {
+      var parsed =
+          new com.fasterxml.jackson.databind.ObjectMapper()
+              .readValue(body, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+      Object detail = parsed.get("detail");
+      if (detail instanceof String text && !text.isBlank())
+        return text.length() > 280 ? text.substring(0, 280) : text;
+    } catch (Exception ignored) {
+      // The analytics service only sends controlled Ask errors; retain a safe generic fallback.
+    }
+    return "Ask Aevum is temporarily unavailable. Your saved data is safe; try again shortly.";
   }
 
   @SuppressWarnings("unchecked")

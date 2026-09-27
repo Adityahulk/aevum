@@ -132,6 +132,30 @@ class UngroundedAnswer(RuntimeError):
     pass
 
 
+def _provider_error(status: int, body: str) -> str:
+    """Return a user-safe provider failure without reflecting credentials or request context."""
+    code = ""
+    message = ""
+    try:
+        error = json.loads(body).get("error", {})
+        if isinstance(error, dict):
+            code = str(error.get("code") or error.get("type") or "").strip()
+            message = str(error.get("message") or "").strip()
+    except (json.JSONDecodeError, AttributeError):
+        pass
+    if status == 401:
+        return "OpenAI rejected the API key configured for Ask Aevum."
+    if status == 403:
+        return "The OpenAI project does not have permission to use Ask Aevum's configured model."
+    if status == 404:
+        return f"The configured model ({_model()}) is unavailable to this OpenAI project."
+    if status == 429:
+        return "OpenAI rate limits or the project's usage limit were reached."
+    detail = " ".join(part for part in [code, message] if part)
+    detail = detail.replace("sk-", "[redacted]-")[:180]
+    return f"OpenAI returned HTTP {status}" + (f": {detail}" if detail else ".")
+
+
 def _output_text(body: dict[str, Any]) -> str:
     if isinstance(body.get("output_text"), str):
         return body["output_text"]
@@ -235,10 +259,15 @@ def generate(
                 headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
                 json=request,
             )
-            response.raise_for_status()
+            if response.status_code >= 400:
+                raise LlmUnavailable(_provider_error(response.status_code, response.text))
             body = response.json()
         return _validate(json.loads(_output_text(body)), allowed_source_ids)
     except UngroundedAnswer:
         raise
+    except LlmUnavailable:
+        raise
+    except httpx.TimeoutException as exc:
+        raise LlmUnavailable("Ask Aevum's model request timed out. Please try again.") from exc
     except (httpx.HTTPError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         raise LlmUnavailable("The configured AI model could not complete this answer.") from exc
