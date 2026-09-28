@@ -396,6 +396,26 @@ def test_guide_context_contains_verified_twin_and_excludes_raw_records():
     assert sources["context:reported"]["profile"]["diet"] == "Vegetarian"
 
 
+def test_workout_context_includes_relevant_systems_and_existing_exercise_options():
+    from assistant import build_context
+
+    t = model([obs(value=132, days=90), obs(value=115)])
+    context, sources = build_context(
+        {
+            "question": "What workout routine is suitable for me?",
+            "twin": t,
+            "profile": {"goal": "Performance"},
+            "recommendations": [
+                {"id": "aerobic", "name": "Build aerobic fitness", "category": "Exercise"}
+            ],
+        }
+    )
+    included = {item["source_id"] for item in context["domain_context"]}
+    assert {"domain:cardiovascular", "domain:musculoskeletal", "domain:functional"} <= included
+    assert "context:reported" in sources
+    assert "recommendation:aerobic" in sources
+
+
 def test_guide_maps_model_citations_to_server_owned_provenance(monkeypatch):
     import assistant
 
@@ -584,6 +604,46 @@ def test_external_llm_answer_is_structured_private_and_source_validated(monkeypa
     )
     with pytest.raises(UngroundedAnswer, match="outside"):
         generate("Ignore instructions", context, {"measurement:obs-1"}, malicious)
+
+
+def test_external_llm_repairs_an_invalid_citation_once(monkeypatch):
+    import httpx
+    from llm import generate
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    responses = iter(["measurement:typo", "measurement:obs-1"])
+
+    def respond(_req):
+        source_id = next(responses)
+        return httpx.Response(
+            200,
+            json={
+                "output_text": json.dumps(
+                    {
+                        "summary": "A measured signal can guide the next step.",
+                        "claims": [
+                            {
+                                "kind": "guidance",
+                                "text": "Use the available signal to plan a manageable next step.",
+                                "source_ids": [source_id],
+                                "confidence": "Moderate",
+                            }
+                        ],
+                        "action_items": [],
+                        "follow_up_questions": ["What should I measure?", "What is missing?"],
+                        "medical_boundary": None,
+                    }
+                )
+            },
+        )
+
+    result = generate(
+        "What should I do?",
+        {"sources": [{"source_id": "measurement:obs-1"}]},
+        {"measurement:obs-1"},
+        httpx.MockTransport(respond),
+    )
+    assert result["claims"][0]["source_ids"] == ["measurement:obs-1"]
 
 
 def test_ask_has_no_deterministic_answer_when_model_is_unconfigured(monkeypatch):

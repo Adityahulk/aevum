@@ -119,9 +119,12 @@ For symptoms, disease, medication, urgent, or high-risk questions, give bounded 
 and an appropriate medical boundary. Do not diagnose, prescribe, advise stopping medication, or
 delay urgent care. Do not use a generic disclaimer when no boundary is relevant.
 
-Every claim must cite one or more exact source_id values from ASK_CONTEXT. A source supports only the
-fields written inside it. Do not cite a source merely because its title sounds relevant. Keep the
-summary concise and put detail in claims. Return only the required JSON object."""
+Every claim must cite one or more exact source_id values from ASK_CONTEXT. Source IDs are opaque:
+copy them character-for-character from `allowed_source_ids`; never invent, shorten, or infer one.
+For practical guidance, cite the supplied user context, relevant recommendation, and/or evidence that
+actually supports it. A source supports only the fields written inside it. Do not cite a source merely
+because its title sounds relevant. Keep the summary concise and put detail in claims. Return only the
+required JSON object."""
 
 
 class LlmUnavailable(RuntimeError):
@@ -197,24 +200,14 @@ def generate(
     if not key:
         raise LlmUnavailable("Ask Aevum has not been configured with an AI model.")
 
+    context = {
+        **context,
+        "allowed_source_ids": sorted(allowed_source_ids),
+    }
     request = {
         "model": model,
         "store": False,
         "instructions": INSTRUCTIONS,
-        "input": [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "input_text",
-                        "text": "USER_QUESTION:\n"
-                        + question[:2000]
-                        + "\n\nASK_CONTEXT:\n"
-                        + json.dumps(context, separators=(",", ":"), ensure_ascii=False),
-                    }
-                ],
-            }
-        ],
         "text": {
             "format": {
                 "type": "json_schema",
@@ -228,16 +221,46 @@ def generate(
     service_tier = os.getenv("OPENAI_SERVICE_TIER", "").strip()
     if service_tier in {"fast", "priority"}:
         request["service_tier"] = service_tier
+    def submit(client: httpx.Client, input_text: str) -> dict[str, Any]:
+        payload = {
+            **request,
+            "input": [
+                {
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": input_text}],
+                }
+            ],
+        }
+        response = client.post(
+            "https://api.openai.com/v1/responses",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json=payload,
+        )
+        response.raise_for_status()
+        return json.loads(_output_text(response.json()))
+
+    input_text = (
+        "USER_QUESTION:\n"
+        + question[:2000]
+        + "\n\nASK_CONTEXT:\n"
+        + json.dumps(context, separators=(",", ":"), ensure_ascii=False)
+    )
     try:
         with httpx.Client(timeout=httpx.Timeout(18.0, connect=4.0), transport=transport) as client:
-            response = client.post(
-                "https://api.openai.com/v1/responses",
-                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                json=request,
-            )
-            response.raise_for_status()
-            body = response.json()
-        return _validate(json.loads(_output_text(body)), allowed_source_ids)
+            answer = submit(client, input_text)
+            try:
+                return _validate(answer, allowed_source_ids)
+            except UngroundedAnswer as exc:
+                if "source" not in str(exc).lower():
+                    raise
+                repaired = submit(
+                    client,
+                    input_text
+                    + "\n\nCORRECTION: Your previous answer used a source ID that was not in "
+                    "allowed_source_ids. Return the complete JSON answer again. Preserve only claims "
+                    "supported by ASK_CONTEXT and copy every source_id exactly from allowed_source_ids.",
+                )
+                return _validate(repaired, allowed_source_ids)
     except UngroundedAnswer:
         raise
     except httpx.HTTPStatusError as exc:

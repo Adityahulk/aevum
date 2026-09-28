@@ -90,6 +90,16 @@ def build_context(payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, di
     )
     domain_ids = {selected} if selected else set()
     detailed_domain_ids = set(domain_ids)
+    if exercise_question:
+        exercise_domains = {"cardiovascular", "recovery", "musculoskeletal", "functional"}
+        available_ids = {domain.get("id") for domain in twin.get("domains", [])}
+        domain_ids.update(exercise_domains & available_ids)
+        detailed_domain_ids.update(exercise_domains & available_ids)
+    if nutrition_question:
+        nutrition_domains = {"metabolic", "cardiovascular"}
+        available_ids = {domain.get("id") for domain in twin.get("domains", [])}
+        domain_ids.update(nutrition_domains & available_ids)
+        detailed_domain_ids.update(nutrition_domains & available_ids)
     if broad:
         domain_ids.update(domain.get("id") for domain in twin.get("domains", []))
         detailed_domain_ids.update(twin.get("priorities", [])[:3])
