@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -19,7 +19,7 @@ import { Badge, Button, Empty, Modal } from "../components";
 import { useApp } from "../context";
 import { CheckInSheet, ExperimentProgressCard, useIsMobile } from "../mobile";
 export function InterventionsPage() {
-  const { state, me, route, go, run, busy, setModal } = useApp();
+  const { state, me, route, go, run, busy, setModal, catalog } = useApp();
   const mobile = useIsMobile();
   const [, segment, targetId] = route.split("/");
   const routedExperiment =
@@ -34,7 +34,13 @@ export function InterventionsPage() {
           ["Evaluated", "Stopped"].includes(routedExperiment.status)
           ? "history"
           : "active"
-        : segment || "recommended";
+        : segment ||
+          (mobile &&
+          state.experiments.some(
+            (e: RecordData) => !["Evaluated", "Stopped"].includes(e.status),
+          )
+            ? "active"
+            : "recommended");
   const [selected, setSelected] = useState<RecordData | null>(() =>
       segment === "plan"
         ? state.recommendations.find((r: RecordData) => r.id === targetId) ||
@@ -45,6 +51,19 @@ export function InterventionsPage() {
       () => routedExperiment || null,
     ),
     [checkIn, setCheckIn] = useState<RecordData | null>(null);
+  useEffect(() => {
+    setSelected(
+      segment === "plan"
+        ? state.recommendations.find((r: RecordData) => r.id === targetId) ||
+            null
+        : null,
+    );
+    setExperiment(
+      segment === "experiment"
+        ? state.experiments.find((e: RecordData) => e.id === targetId) || null
+        : null,
+    );
+  }, [segment, targetId]);
   const active = state.experiments.filter(
     (e: RecordData) => !["Evaluated", "Stopped"].includes(e.status),
   );
@@ -52,15 +71,23 @@ export function InterventionsPage() {
     ["Evaluated", "Stopped"].includes(e.status),
   );
   const prefs = me.profile.preferences || {};
+  const suggestions = mobile
+    ? state.recommendations.filter((r: RecordData) => !r.already_active)
+    : state.recommendations;
   return (
-    <>
+    <div className={mobile ? "m-plan-page" : undefined}>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">PERSONALIZED. MEASURABLE. ADAPTABLE.</span>
-          <h1>Discover what works for you.</h1>
+          <span className="eyebrow">
+            {mobile
+              ? "ONE CHANGE. MEASURABLE PROGRESS."
+              : "PERSONALIZED. MEASURABLE. ADAPTABLE."}
+          </span>
+          <h1>{mobile ? "Your plan" : "Discover what works for you."}</h1>
           <p>
-            Thoughtful next steps, shaped by your biology and backed by
-            evidence.
+            {mobile
+              ? "Choose a meaningful next step. Learn from your response."
+              : "Thoughtful next steps, shaped by your biology and backed by evidence."}
           </p>
         </div>
         <Button variant="secondary" onClick={() => go("settings")}>
@@ -86,10 +113,10 @@ export function InterventionsPage() {
       <div className="tabs">
         <button
           className={tab === "recommended" ? "active" : ""}
-          onClick={() => go("interventions")}
+          onClick={() => go("interventions/recommended")}
         >
           {mobile ? "Suggested" : "Recommended"}{" "}
-          <span>{state.recommendations.length}</span>
+          <span>{suggestions.length}</span>
         </button>
         <button
           className={tab === "active" ? "active" : ""}
@@ -107,7 +134,11 @@ export function InterventionsPage() {
       </div>
       {tab === "recommended" ? (
         <>
-          <div className="recommendation-controls">
+          <details
+            className="recommendation-controls"
+            open={mobile ? undefined : true}
+          >
+            <summary>Evidence preferences</summary>
             <p>
               Ranked by evidence, personal relevance, safety and measurability.
             </p>
@@ -125,24 +156,39 @@ export function InterventionsPage() {
               />
               Strong human evidence only
             </label>
-          </div>
+          </details>
           <div className="recommendation-list">
-            {state.recommendations.map((r: RecordData, i: number) => (
+            {suggestions.map((r: RecordData, i: number) => (
               <article
                 className={
                   "card recommendation " + (i === 0 ? "top-recommendation" : "")
                 }
                 key={r.id}
               >
-                <div className="recommendation-rank">
-                  {String(i + 1).padStart(2, "0")}
-                </div>
+                {!mobile && (
+                  <div className="recommendation-rank">
+                    {String(i + 1).padStart(2, "0")}
+                  </div>
+                )}
                 <div className="recommendation-main">
                   <div className="row wrap">
                     <span className="eyebrow">{r.category}</span>
-                    {i === 0 && r.personal_relevance !== "Unknown" && (
-                      <Badge tone="green">Highest personal relevance</Badge>
+                    {mobile && (
+                      <Badge
+                        tone={
+                          r.recommendation_basis === "Measured priority"
+                            ? "green"
+                            : "purple"
+                        }
+                      >
+                        {r.recommendation_basis || "General option"}
+                      </Badge>
                     )}
+                    {!mobile &&
+                      i === 0 &&
+                      r.recommendation_basis === "Measured priority" && (
+                        <Badge tone="green">Highest personal relevance</Badge>
+                      )}
                     {r.already_active && (
                       <Badge tone="purple">Already active</Badge>
                     )}
@@ -155,73 +201,113 @@ export function InterventionsPage() {
                   </div>
                   <h2>{r.name}</h2>
                   <p>{r.expected_effect}</p>
+                  {mobile && (
+                    <p className="m-plan-reason">{r.personal_reason}</p>
+                  )}
                   <div className="recommendation-meta">
                     <span>
                       <ShieldCheck size={15} />
                       {r.level} evidence
                     </span>
-                    <span>
-                      <Target size={15} />
-                      {r.personal_relevance} relevance
-                    </span>
+                    {!mobile && (
+                      <span>
+                        <Target size={15} />
+                        {r.personal_relevance} relevance
+                      </span>
+                    )}
                     <span>
                       <Clock size={15} />
                       {r.weeks} weeks
                     </span>
                   </div>
+                  {mobile && (
+                    <div className="m-plan-measure">
+                      <span>Track your response</span>
+                      <strong>
+                        {r.targets
+                          .map(
+                            (c: string) =>
+                              catalog.concepts.find(
+                                (x: RecordData) => x.id === c,
+                              )?.name || c,
+                          )
+                          .join(" · ")}
+                      </strong>
+                    </div>
+                  )}
                   <button
                     className="text-button"
                     onClick={() => setSelected(r)}
                   >
-                    Why this ranked #{i + 1} <ChevronRight size={15} />
+                    {mobile ? "Why this option" : `Why this ranked #${i + 1}`}{" "}
+                    <ChevronRight size={15} />
                   </button>
                 </div>
                 <div className="recommendation-action">
                   <Button
                     variant={i === 0 ? "" : "secondary"}
-                    onClick={() => setSelected(r)}
+                    onClick={() =>
+                      r.already_active
+                        ? go("interventions/active")
+                        : setSelected(r)
+                    }
                   >
-                    Explore plan <ArrowUpRight size={16} />
-                  </Button>
-                  <span>
-                    {r.already_active
-                      ? "Running now as your active experiment."
-                      : r.eligible
-                        ? "Let’s test this, thoughtfully."
+                    {mobile
+                      ? r.already_active
+                        ? "View active plan"
                         : r.blocked_reasons.length
-                          ? "Resolve safety considerations"
+                          ? "Review considerations"
                           : r.review_required
-                            ? "Review before starting"
-                            : "Add baseline measurements"}
-                  </span>
+                            ? "Review with your clinician"
+                            : r.eligible
+                              ? "Review and start"
+                              : "Add starting measurement"
+                      : "Explore plan"}{" "}
+                    <ArrowUpRight size={16} />
+                  </Button>
+                  {!mobile && (
+                    <span>
+                      {r.already_active
+                        ? "Running now as your active experiment."
+                        : r.eligible
+                          ? "Let’s test this, thoughtfully."
+                          : r.blocked_reasons.length
+                            ? "Resolve safety considerations"
+                            : r.review_required
+                              ? "Review before starting"
+                              : "Add baseline measurements"}
+                    </span>
+                  )}
                 </div>
               </article>
             ))}
           </div>
-          {!state.recommendations.length && (
+          {!suggestions.length && (
             <Empty title="No options match your filters">
               Adjust your evidence and supplement preferences, or add more data.
             </Empty>
           )}
-          <section className="knowledge-strip">
-            <BookOpen size={22} />
-            <div>
-              <h3>A place for emerging science, too.</h3>
-              <p>
-                Senolytics and other investigational gerotherapeutics are
-                research knowledge only. They are excluded from self-directed
-                experiments.
-              </p>
-            </div>
-            <button
-              className="text-button"
-              onClick={() =>
-                setModal({ type: "evidence", ids: ["e-hallmarks"] })
-              }
-            >
-              Explore the framework <ArrowUpRight size={15} />
-            </button>
-          </section>
+          {!mobile && (
+            <section className="knowledge-strip">
+              <BookOpen size={22} />
+              <div>
+                <h3>A place for emerging science, too.</h3>
+                <p>
+                  Senolytics and other investigational gerotherapeutics are
+                  research knowledge only. They are excluded from self-directed
+                  experiments.
+                </p>
+              </div>
+              <button
+                className="text-button"
+                onClick={() =>
+                  setModal({ type: "evidence", ids: ["e-hallmarks"] })
+                }
+              >
+                Explore the framework <ArrowUpRight size={15} />
+              </button>
+            </section>
+          )}
         </>
       ) : (
         <div className="experiment-grid">
@@ -289,7 +375,10 @@ export function InterventionsPage() {
                   : "Your learning history starts here."
               }
               action={
-                <Button variant="secondary" onClick={() => go("interventions")}>
+                <Button
+                  variant="secondary"
+                  onClick={() => go("interventions/recommended")}
+                >
                   Explore recommendations
                 </Button>
               }
@@ -308,6 +397,7 @@ export function InterventionsPage() {
             <Badge tone="green">{selected.level} evidence</Badge>
             <Badge>{selected.weeks}-week measurement window</Badge>
           </div>
+          {mobile && <p className="modal-intro">{selected.personal_reason}</p>}
           <h3>Why this is relevant to you</h3>
           <ul className="check-list">
             {selected.why.map((w: string) => (
@@ -334,6 +424,47 @@ export function InterventionsPage() {
               )}
             </div>
           </div>
+          {mobile && selected.implementation_options?.length > 0 && (
+            <section className="m-plan-steps">
+              <h3>What you’ll do</h3>
+              <ul>
+                {selected.implementation_options.map((step: string) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {mobile &&
+            !selected.eligible &&
+            !selected.already_active &&
+            !selected.review_required &&
+            !selected.blocked_reasons.length && (
+              <div className="info-note">
+                <div>
+                  <strong>Add a starting measurement</strong>
+                  <p>
+                    Use a recent{" "}
+                    {selected.targets
+                      .map(
+                        (c: string) =>
+                          catalog.concepts.find((x: RecordData) => x.id === c)
+                            ?.name || c,
+                      )
+                      .join(", ")}{" "}
+                    measurement to track your response.
+                  </p>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setSelected(null);
+                      go("data");
+                    }}
+                  >
+                    Add or review measurements <ArrowRight size={16} />
+                  </Button>
+                </div>
+              </div>
+            )}
           <form
             onSubmit={async (e) => {
               e.preventDefault();
@@ -412,7 +543,7 @@ export function InterventionsPage() {
           onClose={() => setCheckIn(null)}
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -423,7 +554,7 @@ export function ExperimentModal({
   experiment: RecordData;
   onClose: () => void;
 }) {
-  const { run, busy, setModal } = useApp();
+  const { run, busy, setModal, go } = useApp();
   return (
     <Modal title={e.name} wide onClose={onClose}>
       <div className="row wrap">
@@ -431,6 +562,20 @@ export function ExperimentModal({
         <span className="muted">Evaluation date · {date(e.due_date)}</span>
       </div>
       <p className="modal-intro">{e.protocol}</p>
+      {!["Stopped", "Evaluated"].includes(e.status) && (
+        <p className="text-small">
+          Follow-up measurements are reviewed against your saved starting point.{" "}
+          <button
+            className="text-button"
+            onClick={() => {
+              onClose();
+              go("data");
+            }}
+          >
+            Add follow-up data <Upload size={15} />
+          </button>
+        </p>
+      )}
       <div className="table-scroll">
         <table>
           <thead>
@@ -534,6 +679,17 @@ export function ExperimentModal({
           <h2>{e.response.outcome}</h2>
           <Badge>{e.response.confidence} confidence</Badge>
           <p>{e.response.interpretation}</p>
+          {e.response.outcome === "Inconclusive" && (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                onClose();
+                go("data");
+              }}
+            >
+              Review or add follow-up data <ArrowRight size={16} />
+            </Button>
+          )}
           <div className="response-changes">
             {e.response.changes.map((c: RecordData) => (
               <div key={c.concept_id}>

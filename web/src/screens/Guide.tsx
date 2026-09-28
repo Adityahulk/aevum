@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -21,11 +21,28 @@ import { useSpeech, useVoiceInput } from "../voice";
 export function AIPage() {
   const { state, route, me, go, setModal, setError } = useApp();
   const mobile = useIsMobile();
+  const conversationEnd = useRef<HTMLDivElement>(null);
+  const [keyboardInset, setKeyboardInset] = useState(0);
   const domain = route.split("/")[1];
   const [messages, setMessages] = useState<RecordData[]>([]),
     [question, setQuestion] = useState(""),
     [sending, setSending] = useState(false);
   const speech = useSpeech();
+  useEffect(() => {
+    if (!mobile || !window.visualViewport) return;
+    const viewport = window.visualViewport;
+    const update = () =>
+      setKeyboardInset(
+        Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop),
+      );
+    viewport.addEventListener("resize", update);
+    viewport.addEventListener("scroll", update);
+    update();
+    return () => {
+      viewport.removeEventListener("resize", update);
+      viewport.removeEventListener("scroll", update);
+    };
+  }, [mobile]);
   const voice = useVoiceInput({
     onInterim: setQuestion,
     onFinal: (text) => ask(text, true),
@@ -44,6 +61,12 @@ export function AIPage() {
     try {
       const answer = await post("/ai", { question: q, domain });
       setMessages((m) => [...m, answer]);
+      requestAnimationFrame(() =>
+        conversationEnd.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "end",
+        }),
+      );
       if (spoken) speech.speak(answer.id, answer.answer);
     } catch (e: any) {
       setError(e.message);
@@ -67,23 +90,35 @@ export function AIPage() {
       </Empty>
     );
   return (
-    <div className="ai-page">
+    <div
+      className={
+        "ai-page" + (mobile && messages.length ? " m-chat-started" : "")
+      }
+    >
       <div className="page-heading">
         <div>
           <span className="eyebrow">YOUR PERSONAL BIOLOGICAL GUIDE</span>
-          <h1>Make sense of your biology.</h1>
+          <h1>{mobile ? "Ask Aevum" : "Make sense of your biology."}</h1>
           <p>
-            Ask a question. Follow the evidence. Understand the uncertainty.
+            {mobile
+              ? "Your data. Your questions. A clearer next step."
+              : "Ask a question. Follow the evidence. Understand the uncertainty."}
           </p>
         </div>
-        <Badge tone="purple">
-          <span className="status-dot" />
-          {messages[messages.length - 1]?.mode || "Grounded guide"}
-        </Badge>
+        {!mobile && (
+          <Badge tone="purple">
+            <span className="status-dot" />
+            {messages[messages.length - 1]?.mode || "Grounded guide"}
+          </Badge>
+        )}
       </div>
       <div className="ai-context-bar">
         <Dna size={18} />
-        <span>Connected to Twin v{state.twin.version}</span>
+        <span>
+          {mobile
+            ? "Using your shared health data"
+            : `Connected to Twin v${state.twin.version}`}
+        </span>
         <span>·</span>
         <span>{state.twin.observation_count} verified measurements</span>
         {domain && (
@@ -118,48 +153,97 @@ export function AIPage() {
           messages.map((m: RecordData) => (
             <div className="message-pair" key={m.id}>
               <div className="user-message">{m.question}</div>
-              <article className="assistant-message">
+              <article
+                className={
+                  "assistant-message" +
+                  (/pathway|biolog|mechanism/i.test(m.question)
+                    ? " ai-pathway"
+                    : "")
+                }
+              >
                 <span className="ai-avatar">
                   <Sparkles size={17} />
                 </span>
                 <div>
                   <div className="row between">
                     <strong>Aevum</strong>
-                    <span className="muted text-small">
-                      {m.mode} · {m.confidence || m.claims?.[0]?.confidence}{" "}
-                      confidence
-                    </span>
+                    {!mobile && (
+                      <span className="muted text-small">
+                        {m.mode} · {m.confidence || m.claims?.[0]?.confidence}{" "}
+                        confidence
+                      </span>
+                    )}
                   </div>
-                  {m.mode_detail && (
+                  {mobile && m.mode !== "Grounded AI" && (
+                    <p className="m-legacy-answer">
+                      Saved response from an earlier version · ask again for an
+                      updated answer.
+                    </p>
+                  )}
+                  {!mobile && m.mode_detail && (
                     <p className="muted text-small mode-detail">
                       {m.mode_detail}
                     </p>
                   )}
                   <p className="ai-summary">{m.answer}</p>
-                  {m.claims?.length > 0 && (
-                    <div className="ai-claims">
-                      {m.claims.map((claim: RecordData, index: number) => (
-                        <section
-                          key={index}
-                          className={"ai-claim " + claim.kind}
-                        >
-                          <span>{claim.kind || "grounded explanation"}</span>
-                          <p>{claim.text}</p>
-                          <small>
-                            {claim.source_ids?.length || 0} linked{" "}
-                            {(claim.source_ids?.length || 0) === 1
-                              ? "source"
-                              : "sources"}
-                            {" · "}
-                            {claim.confidence} confidence
-                          </small>
-                        </section>
+                  {mobile &&
+                    m.claims
+                      ?.filter(
+                        (claim: RecordData) => claim.kind === "uncertainty",
+                      )
+                      .map((claim: RecordData, index: number) => (
+                        <p className="ai-limitation" key={index}>
+                          {claim.text}
+                        </p>
                       ))}
-                    </div>
+                  {m.claims?.some(
+                    (claim: RecordData) =>
+                      !mobile || claim.kind !== "uncertainty",
+                  ) && (
+                    <details
+                      className="ai-reasoning"
+                      open={
+                        !mobile || /pathway|biolog|mechanism/i.test(m.question)
+                      }
+                    >
+                      <summary>
+                        {mobile
+                          ? "Why this fits your data"
+                          : "Supporting explanation"}
+                      </summary>
+                      <div className="ai-claims">
+                        {m.claims
+                          .filter(
+                            (claim: RecordData) =>
+                              !mobile || claim.kind !== "uncertainty",
+                          )
+                          .map((claim: RecordData, index: number) => (
+                            <section
+                              key={index}
+                              className={"ai-claim " + claim.kind}
+                            >
+                              <span>
+                                {claim.kind || "grounded explanation"}
+                              </span>
+                              <p>{claim.text}</p>
+                              <small>
+                                {claim.source_ids?.length || 0} linked{" "}
+                                {(claim.source_ids?.length || 0) === 1
+                                  ? "source"
+                                  : "sources"}
+                                {" · "}
+                                {claim.confidence} confidence
+                              </small>
+                            </section>
+                          ))}
+                      </div>
+                    </details>
                   )}
                   {m.action_items?.length > 0 && (
                     <section className="ai-actions">
-                      <strong>Practical next steps</strong>
+                      <strong>
+                        {mobile ? "Your next steps" : "Practical next steps"}
+                      </strong>
                       {m.action_items.map((item: string) => (
                         <div key={item}>
                           <CheckCircle2 size={14} />
@@ -172,13 +256,17 @@ export function AIPage() {
                     <p className="ai-medical-boundary">{m.medical_boundary}</p>
                   )}
                   <div className="claim-sources">
-                    <button onClick={() => go("data")}>
-                      <Database size={13} />
-                      {m.provenance?.observation_ids?.length ||
-                        m.claims?.[0]?.observation_ids?.length ||
-                        0}{" "}
-                      measurements
-                    </button>
+                    {!mobile ||
+                    m.provenance?.observation_ids?.length ||
+                    m.claims?.[0]?.observation_ids?.length ? (
+                      <button onClick={() => go("data")}>
+                        <Database size={13} />
+                        {m.provenance?.observation_ids?.length ||
+                          m.claims?.[0]?.observation_ids?.length ||
+                          0}{" "}
+                        measurements
+                      </button>
+                    ) : null}
                     {m.evidence?.length > 0 && (
                       <button
                         onClick={() =>
@@ -210,14 +298,29 @@ export function AIPage() {
                         {speech.speakingId === m.id ? "Stop" : "Listen"}
                       </button>
                     )}
-                    <Badge>{m.claims?.[0]?.model_version}</Badge>
+                    {!mobile && <Badge>{m.claims?.[0]?.model_version}</Badge>}
                   </div>
                   <details className="claim-details">
-                    <summary>Inspect sources used for this answer</summary>
+                    <summary>
+                      {mobile
+                        ? "Sources & answer details"
+                        : "Inspect sources used for this answer"}
+                    </summary>
+                    {mobile && (
+                      <p className="text-small muted">
+                        {m.created_at
+                          ? new Date(m.created_at).toLocaleDateString() + " · "
+                          : ""}
+                        {m.mode} · {m.confidence || m.claims?.[0]?.confidence}{" "}
+                        confidence · Twin{" "}
+                        {m.provenance?.twin_version || "version not recorded"}
+                        {m.mode_detail ? ` · ${m.mode_detail}` : ""}
+                      </p>
+                    )}
                     <div className="ai-source-list">
                       {m.source_cards?.map((source: RecordData) => (
                         <div key={source.source_id}>
-                          <strong>{source.source_id}</strong>
+                          <strong>{source.label || source.source_id}</strong>
                           <span>
                             {source.source_type?.replaceAll("_", " ")}
                           </span>
@@ -227,15 +330,17 @@ export function AIPage() {
                   </details>
                   {m.suggestions?.length > 0 && (
                     <div className="ai-follow-ups">
-                      {m.suggestions.map((suggestion: string) => (
-                        <button
-                          key={suggestion}
-                          onClick={() => ask(suggestion)}
-                        >
-                          {suggestion}
-                          <ArrowUpRight size={13} />
-                        </button>
-                      ))}
+                      {(mobile ? m.suggestions.slice(0, 1) : m.suggestions).map(
+                        (suggestion: string) => (
+                          <button
+                            key={suggestion}
+                            onClick={() => ask(suggestion)}
+                          >
+                            {suggestion}
+                            <ArrowUpRight size={13} />
+                          </button>
+                        ),
+                      )}
                     </div>
                   )}
                 </div>
@@ -250,9 +355,15 @@ export function AIPage() {
             <LoaderCircle size={15} className="spin" />
           </div>
         )}
+        <div ref={conversationEnd} />
       </div>
       <form
         className="chat-composer"
+        style={
+          mobile && keyboardInset > 100
+            ? { bottom: keyboardInset + 8 }
+            : undefined
+        }
         onSubmit={(e) => {
           e.preventDefault();
           ask(question);
@@ -304,9 +415,9 @@ export function AIPage() {
         </p>
       )}
       <p className="ai-footnote">
-        Ask uses a consent-gated, question-relevant view of your structured
-        Twin. Every displayed claim must link to that context. It does not
-        diagnose or prescribe.
+        {mobile
+          ? "Answers use the health information you’ve shared. You can inspect their sources above. Aevum does not diagnose or prescribe."
+          : "Ask uses a consent-gated, question-relevant view of your structured Twin. Every displayed claim must link to that context. It does not diagnose or prescribe."}
         {voice.supported &&
           " Voice questions are transcribed by your browser’s speech service and sent like typed text."}
       </p>

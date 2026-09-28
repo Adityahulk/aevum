@@ -5503,3 +5503,96 @@ p.m-status {
   line-height: 1.5;
   color: var(--muted);
 }
+
+.ai-reasoning > summary,
+.recommendation-controls > summary,
+.twin-history > summary { display: none; }
+.ai-reasoning { display: contents; }
+
+/* Mobile: the next decision first, supporting detail on demand. */
+@media (max-width: 700px) {
+  .topbar .logo { max-width: 134px; }
+  .m-today .m-heading h1 { font-size: clamp(25px, 6.5vw, 32px); letter-spacing: -.8px; }
+  .m-card { box-shadow: 0 2px 8px #263b3004; }
+  .m-priority { padding: 24px; background: linear-gradient(135deg, #f7f9f3, #fff); }
+  .m-priority h2 { font-size: 27px; line-height: 1.2; letter-spacing: -.7px; }
+  .m-priority p { font-size: 15px; line-height: 1.65; }
+  .m-scope-note { border-top: 1px solid var(--line); padding-top: 12px; margin-bottom: 18px; }
+  .m-scope-note summary, .m-source-summary summary { cursor: pointer; color: #526653; font-size: 13px; padding: 8px 0; }
+  .m-chip { display: inline-flex; align-items: center; gap: 5px; }
+  button.m-chip { border: 0; cursor: pointer; }
+  .m-next-step { padding: 22px; margin-bottom: 18px; }
+  .m-next-step h2 { font-size: 22px; }
+  .m-today-plan { margin-bottom: 24px; }
+  .m-system-grid { grid-template-columns: 1fr; gap: 10px; }
+  .m-system { text-align: left; padding: 17px 20px; }
+  .m-system strong { margin: 10px 0 3px; font-size: 17px; }
+  .m-source-summary, .m-twin-intro { padding: 24px; margin: 20px 0; background: linear-gradient(135deg, #f4f7ef, #fff); }
+  .m-source-summary h2, .m-twin-intro h2 { font-size: 23px; line-height: 1.3; letter-spacing: -.5px; margin: 10px 0; }
+  .m-source-summary p, .m-twin-intro p { font-size: 14px; line-height: 1.6; color: #606c65; }
+  .m-source-summary details { border-top: 1px solid var(--line); margin-top: 16px; }
+  .m-source-summary details p { font-size: 13px; }
+  .m-domain-state { font-size: 12px; font-weight: 500; line-height: 1.6; margin-top: 8px; }
+  .m-domain-list button { align-items: start; }
+  .m-story-intro { font-size: 13px; }
+  .m-step-card { padding: 20px; }
+  .m-step-card h3 { font-size: 19px; }
+  .m-step-card p { font-size: 14px; line-height: 1.6; }
+  .twin-history { padding: 18px 20px; }
+  .twin-history > summary { display: list-item; cursor: pointer; font-weight: 600; }
+  .twin-history .section-title { margin-top: 18px; }
+  .m-history-notice { padding: 12px; background: #f5eee0; border-radius: 12px; }
+  .m-plan-page .page-heading { margin-bottom: 18px; }
+  .m-plan-page .page-heading h1 { font-size: 32px; }
+  .m-plan-page .page-heading p { font-size: 15px; }
+  .m-plan-page .page-heading > .button { align-self: start; }
+  .m-plan-page .intervention-goal { padding: 14px 16px; margin-bottom: 20px; }
+  .m-plan-page .intervention-goal .eyebrow { display: none; }
+  .m-plan-page .tabs { margin-bottom: 14px; }
+  .m-plan-page .recommendation-controls { display: block; padding: 0 4px 16px; }
+  .m-plan-page .recommendation-controls > summary { display: list-item; font-size: 13px; cursor: pointer; color: #526653; padding: 8px 0; }
+  .m-plan-page .recommendation-controls p { font-size: 13px; }
+  .m-plan-page .recommendation { display: block; padding: 22px; }
+  .m-plan-page .recommendation h2 { font-size: 22px; line-height: 1.3; margin-top: 15px; }
+  .m-plan-page .recommendation p { font-size: 14px; line-height: 1.6; }
+  .m-plan-page .recommendation .eyebrow { font-size: 10px; }
+  .m-plan-page .recommendation-meta { gap: 12px; margin: 14px 0; font-size: 12px; }
+  .m-plan-reason { color: #344c3d; }
+  .m-plan-measure { display: grid; gap: 5px; border-top: 1px solid var(--line); padding: 14px 0; }
+  .m-plan-measure span { font-size: 11px; color: var(--muted); }
+  .m-plan-measure strong { font-size: 13px; font-weight: 500; }
+  .m-plan-page .recommendation-action { margin-top: 18px; }
+  .m-plan-page .recommendation-action .button { width: 100%; justify-content: center; }
+  .m-plan-steps { margin: 20px 0; font-size: 14px; line-height: 1.7; }
+  .m-plan-steps li { margin: 10px 0; }
+  .ai-page .page-heading h1 { font-size: 30px; }
+  .ai-page .page-heading .eyebrow { display: none; }
+  .m-chat-started .page-heading p { display: none; }
+  .m-chat-started .page-heading { margin-bottom: 12px; }
+  .ai-context-bar { font-size: 11px; padding: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+  .ai-page .conversation { padding-bottom: 115px; }
+  .assistant-message { grid-template-columns: 1fr; gap: 8px; }
+  .assistant-message > .ai-avatar { display: none; }
+  .assistant-message > div { min-width: 0; display: flex; flex-direction: column; }
+  .assistant-message .ai-summary { font-size: 16px; line-height: 1.75; order: 1; }
+  .assistant-message .ai-actions { order: 2; padding: 18px; font-size: 14px; }
+  .assistant-message .ai-medical-boundary { order: 3; }
+  .assistant-message .ai-limitation { order: 3; font-size: 13px; line-height: 1.65; color: #657067; border-left: 2px solid #bccbb5; padding-left: 12px; }
+  .assistant-message .ai-reasoning { display: block; order: 4; border-top: 1px solid var(--line); margin-top: 15px; }
+  .assistant-message.ai-pathway .ai-reasoning { order: 2; }
+  .assistant-message.ai-pathway .ai-actions { order: 4; }
+  .ai-reasoning > summary { display: list-item; cursor: pointer; padding: 14px 0; font-size: 13px; color: #526653; }
+  .ai-reasoning .ai-claim { padding: 14px; margin: 8px 0; }
+  .ai-reasoning .ai-claim p { font-size: 14px; line-height: 1.6; }
+  .assistant-message .claim-sources { order: 5; gap: 8px; }
+  .claim-sources button { font-size: 12px; padding: 9px 12px; }
+  .assistant-message .claim-details { order: 6; font-size: 12px; }
+  .assistant-message .ai-follow-ups { order: 7; }
+  .m-legacy-answer { font-size: 12px; color: #78603c; padding: 12px; background: #faf4e9; border-radius: 10px; }
+  .ai-source-list { overflow-wrap: anywhere; }
+  .chat-composer { left: 14px; right: 14px; width: auto; box-shadow: 0 6px 28px #20362d12; }
+  .chat-composer input { min-width: 0; font-size: 16px; }
+  .ai-page .ai-footnote { font-size: 11px; line-height: 1.6; }
+  .m-today .page-footer { display: none; }
+  summary:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid #587361; outline-offset: 3px; }
+}

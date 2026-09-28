@@ -26,7 +26,7 @@ import { api, date, shortDate, RecordData } from "./api";
 import { Badge, Button, Modal } from "./components";
 import { useApp } from "./context";
 import { domainIcons } from "./config";
-import { isWearable } from "./wearables";
+import { isWearable, WearableProvider } from "./wearables";
 import { RangeTrack } from "./MeasurementCards";
 import {
   attentionDomains,
@@ -35,6 +35,9 @@ import {
   isActiveExperiment,
   isWithinExpected,
   suggestionFor,
+  genomicSource,
+  domainSummary,
+  followUpMeasurements,
 } from "./priorities";
 
 const MOBILE_QUERY = "(max-width: 700px)";
@@ -312,22 +315,25 @@ export function MobileToday() {
         ),
       )
     : [];
-  const active = state.experiments.find(isActiveExperiment);
-  const targeted = active
-    ? attention.filter(
-        (d) =>
-          experimentsTargeting(d.id, [active], catalog?.interventions).length,
-      )
-    : [];
+  const active = [...state.experiments]
+    .filter(isActiveExperiment)
+    .sort(
+      (a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime(),
+    )[0];
+  const pending = state.artifacts.find(
+    (a: RecordData) => a.status === "review_required",
+  );
+  const nextPlan = state.recommendations.find(
+    (r: RecordData) => r.eligible && !r.already_active,
+  );
   const wearableDate = latest(
     state.observations.filter((o: RecordData) => isWearable(o.source)),
   );
   const labDate = latest(
-    state.observations.filter((o: RecordData) => !isWearable(o.source)),
+    state.observations.filter((o: RecordData) =>
+      ["lab_csv", "lab_pdf", "historical_table"].includes(o.source),
+    ),
   );
-  const hasDna =
-    me.consents.genomics &&
-    state.artifacts.some((a: RecordData) => a.kind === "genomics");
   const doingWell = t.domains.filter(
     (d: RecordData) =>
       isWithinExpected(d) && !attention.some((a) => a.id === d.id),
@@ -359,8 +365,44 @@ export function MobileToday() {
         <span className="m-chip">
           {labDate ? `Labs · ${relativeDays(labDate)}` : "No lab results"}
         </span>
-        <span className="m-chip">{hasDna ? "DNA added" : "DNA not added"}</span>
+        <button className="m-chip" onClick={() => go("you")}>
+          Your sources <ChevronRight size={14} />
+        </button>
       </div>
+
+      {pending && (
+        <section className="m-card m-next-step">
+          <span className="m-eyebrow">Finish your import</span>
+          <h2>Your results need a quick review</h2>
+          <p>
+            Confirm the extracted measurements before they inform your Twin.
+          </p>
+          <Button className="m-block" onClick={() => go("data/sources")}>
+            Review results <ArrowRight size={18} />
+          </Button>
+        </section>
+      )}
+
+      {active && (
+        <section className="m-today-plan">
+          <div className="m-section-head">
+            <h2>Your next step</h2>
+            <button
+              className="m-link"
+              onClick={() => go("interventions/active")}
+            >
+              Your plan <ChevronRight size={16} />
+            </button>
+          </div>
+          <ExperimentProgressCard
+            e={active}
+            compact
+            onCheckIn={() => setCheckIn(active)}
+            onOpen={() => go("interventions/experiment/" + active.id)}
+            onEvaluated={(e) => go("interventions/experiment/" + e.id)}
+          />
+        </section>
+      )}
 
       {priority ? (
         <section
@@ -398,7 +440,7 @@ export function MobileToday() {
             </>
           )}
           <Button className="m-block" onClick={() => go("twin/" + priority.id)}>
-            See why this is happening <ArrowRight size={18} />
+            Explore what may contribute <ArrowRight size={18} />
           </Button>
         </section>
       ) : state.observations.length && !canAssess(t) ? (
@@ -434,40 +476,57 @@ export function MobileToday() {
         <section className="m-card m-priority">
           <div className="m-row between">
             <span className="m-eyebrow">Your priorities</span>
-            <Badge tone="green">All clear</Badge>
+            <Badge tone="green">Assessed results</Badge>
           </div>
           <h2>
-            Nothing needs <em>attention right now</em>
+            No flagged patterns <em>in assessed systems</em>
           </h2>
           <p>
             {doingWell.length === 1
               ? "Your 1 measured system is"
               : `All ${doingWell.length} measured systems are`}{" "}
-            within the lab’s range or your personal baseline
+            within the available reference ranges or personal baselines
             {labDate ? `, based on results from ${shortDate(labDate)}` : ""}.
           </p>
           {unmeasured.length > 0 && (
-            <p className="m-scope-note">
-              {unmeasured.length}{" "}
-              {unmeasured.length === 1 ? "system isn’t" : "systems aren’t"}{" "}
-              measured yet:{" "}
-              {unmeasured.map((d: RecordData) => d.name).join(", ")}.
-              {!wearableDate &&
-                " Wearable data adds recovery and fitness signals."}
-            </p>
+            <details className="m-scope-note">
+              <summary>What this assessment doesn’t cover</summary>
+              <p>
+                {unmeasured.length}{" "}
+                {unmeasured.length === 1 ? "system isn’t" : "systems aren’t"}{" "}
+                measured yet:{" "}
+                {unmeasured.map((d: RecordData) => d.name).join(", ")}.
+                {!wearableDate &&
+                  " Wearable data adds recovery and fitness signals."}
+              </p>
+            </details>
           )}
-          <Button className="m-block" onClick={() => go("twin")}>
-            Explore your Twin <ArrowRight size={18} />
+          <Button
+            className="m-block"
+            onClick={() =>
+              go(
+                nextPlan && !active
+                  ? "interventions/plan/" + nextPlan.id
+                  : "twin",
+              )
+            }
+          >
+            {nextPlan && !active
+              ? "Review a suggested plan"
+              : "Explore your Twin"}{" "}
+            <ArrowRight size={18} />
           </Button>
-          {unmeasured.length > 0 && !wearableDate && (
-            <Button
-              variant="secondary"
-              className="m-block"
-              onClick={() => go("data")}
-            >
-              Connect a wearable <ArrowRight size={18} />
-            </Button>
-          )}
+          {unmeasured.some((d: RecordData) => d.id === "recovery") &&
+            !wearableDate &&
+            me.profile.goal === "Recovery" && (
+              <Button
+                variant="secondary"
+                className="m-block"
+                onClick={() => go("data/wearables")}
+              >
+                Connect a wearable <ArrowRight size={18} />
+              </Button>
+            )}
         </section>
       ) : (
         <section className="m-card m-priority">
@@ -503,48 +562,35 @@ export function MobileToday() {
         </>
       )}
 
-      <div className="m-section-head">
-        <h2>Your protocol</h2>
-        <button className="m-link" onClick={() => go("interventions")}>
-          All options <ChevronRight size={16} />
-        </button>
-      </div>
-      {active && attention.length > 0 && (
-        <p className="m-coverage-note">
-          {targeted.length
-            ? `Targets ${targeted.length} of your ${attention.length} priorities: ${targeted.map((d) => d.name).join(", ")}.`
-            : `Doesn’t target your current ${attention.length === 1 ? "priority" : "priorities"} directly.`}
-        </p>
-      )}
-      {active ? (
-        <ExperimentProgressCard
-          e={active}
-          compact
-          onCheckIn={() => setCheckIn(active)}
-          onOpen={() => go("interventions/experiment/" + active.id)}
-          onEvaluated={(e) => go("interventions/experiment/" + e.id)}
-        />
-      ) : (
-        <section className="m-card">
-          <h3 className="m-card-title">Make your next step measurable</h3>
-          <p className="m-body">
-            Turn a personal priority into a thoughtful experiment with a frozen
-            baseline.
-          </p>
-          <Button
-            variant="secondary"
-            className="m-block"
-            onClick={() => go("interventions")}
-          >
-            Explore your options <ArrowRight size={18} />
-          </Button>
-        </section>
+      {!active && priority && (
+        <>
+          <div className="m-section-head">
+            <h2>Your protocol</h2>
+            <button className="m-link" onClick={() => go("interventions")}>
+              All options <ChevronRight size={16} />
+            </button>
+          </div>
+          <section className="m-card">
+            <h3 className="m-card-title">Make your next step measurable</h3>
+            <p className="m-body">
+              Choose a practical change and a starting measurement. Review your
+              progress after the planned follow-up.
+            </p>
+            <Button
+              variant="secondary"
+              className="m-block"
+              onClick={() => go("interventions")}
+            >
+              Explore your options <ArrowRight size={18} />
+            </Button>
+          </section>
+        </>
       )}
 
       {doingWell.length > 0 && (
         <>
           <div className="m-section-head">
-            <h2>Doing well</h2>
+            <h2>Within assessed ranges</h2>
             <button className="m-link" onClick={() => go("twin")}>
               All systems <ChevronRight size={16} />
             </button>
@@ -565,7 +611,7 @@ export function MobileToday() {
                     <StatusBadge d={d} />
                   </span>
                   <strong>{d.name}</strong>
-                  <small>{d.state}</small>
+                  <small>View measurements and context</small>
                 </button>
               );
             })}
@@ -594,7 +640,7 @@ export function MobileDomainList({ twin }: { twin: RecordData }) {
   const groups: [string, RecordData[]][] = [
     ["Needs attention", attention],
     [
-      "Doing well",
+      "Within assessed ranges",
       twin.domains.filter(
         (d: RecordData) =>
           isWithinExpected(d) && !attention.some((a) => a.id === d.id),
@@ -610,7 +656,7 @@ export function MobileDomainList({ twin }: { twin: RecordData }) {
       ),
     ],
     [
-      "Not yet measured",
+      "More information needed",
       twin.domains.filter(
         (d: RecordData) => !d.coverage && !attention.some((a) => a.id === d.id),
       ),
@@ -638,7 +684,7 @@ export function MobileDomainList({ twin }: { twin: RecordData }) {
                       <strong>{d.name}</strong>
                       <small>{d.subtitle}</small>
                       <small className="m-domain-state">
-                        {d.state} · {d.confidence} confidence
+                        {domainSummary(d)}
                       </small>
                     </span>
                     <span className="m-badges">
@@ -691,9 +737,9 @@ function Step({
   );
 }
 
-export function PathwayStory({ d }: { d: RecordData }) {
+export function PathwayStory({ d, twin }: { d: RecordData; twin: RecordData }) {
   const { state, catalog, go } = useApp();
-  const rels: RecordData[] = state.twin.relationships.filter(
+  const rels: RecordData[] = twin.relationships.filter(
     (r: RecordData) => r.domain === d.id,
   );
   const signal = topSignal(d) || d.signals[0];
@@ -702,13 +748,13 @@ export function PathwayStory({ d }: { d: RecordData }) {
   )
     .map((id) => catalog.hallmarks.find((h: RecordData) => h.id === id)?.name)
     .filter(Boolean) as string[];
-  const matches = state.recommendations.filter((r: RecordData) =>
-    [r.domain, ...(r.also || [])].includes(d.id),
+  const matches = (twin === state.twin ? state.recommendations : []).filter(
+    (r: RecordData) => [r.domain, ...(r.also || [])].includes(d.id),
   );
   const rec =
     matches.find((r: RecordData) => r.eligible && !r.blocked_reasons.length) ||
     matches[0];
-  const attention = attentionDomains(state.twin);
+  const attention = attentionDomains(twin);
   const rank = attention.findIndex((x) => x.id === d.id) + 1;
   const covering = experimentsTargeting(
     d.id,
@@ -719,7 +765,7 @@ export function PathwayStory({ d }: { d: RecordData }) {
     <section className="m-story" aria-label="From your data to what can help">
       <p className="m-story-intro">
         {rank ? `Priority ${rank} of ${attention.length} · ` : ""}
-        From your data to what can move it · 5 steps
+        From your measurements to possible next steps
       </p>
       <ol>
         <Step
@@ -773,95 +819,116 @@ export function PathwayStory({ d }: { d: RecordData }) {
             </p>
           </Step>
         )}
-        <Step
-          n={3}
-          eyebrow="Biological process"
-          chip={rels.length ? rels[0].level : "Not inferred"}
-          tone={
-            rels.length
-              ? rels[0].level === "Hypothesis"
-                ? "amber"
-                : "green"
-              : ""
-          }
-          title={
-            rels.length
-              ? rels.map((r) => r.process).join(" · ")
-              : "No biological process inferred"
-          }
-        >
-          <p>
-            {rels.length
-              ? Array.from(
-                  new Set(rels.map((r) => r.pathway).filter(Boolean)),
-                ).join(" · ") ||
-                "An evidence-classified interpretation, not a measured cause."
-              : "A single cross-sectional panel cannot establish an active mechanism."}
-          </p>
-        </Step>
-        <Step
-          n={4}
-          eyebrow="Aging hallmark"
-          chip={hallmarks.length ? "Not directly measured" : "No mapping"}
-          tone={hallmarks.length ? "purple" : ""}
-          title={
-            hallmarks.length
-              ? hallmarks.join(" · ")
-              : "No individual hallmark mapping"
-          }
-        >
-          <p>
-            {hallmarks.length
-              ? "Linked to this pattern in the Hallmarks of Aging framework. Linked, not proven as the cause."
-              : "The framework stays visible without claiming it was measured."}
-          </p>
-          <button className="m-link" onClick={() => go("biology/" + d.id)}>
-            Explore the biology <ChevronRight size={16} />
-          </button>
-        </Step>
-        <Step
-          n={5}
-          eyebrow="What can move it"
-          chip={rec ? `${rec.level} evidence` : undefined}
-          tone="green"
-          title={rec ? rec.name : "No matching option yet"}
-          last
-        >
-          <p>
-            {rec
-              ? rec.expected_effect
-              : "Add verified baseline measurements to unlock measurable next steps."}
-          </p>
-          {rec?.review_required && (
-            <Badge tone="amber">Professional review</Badge>
-          )}
-          {covering.length > 0 && !rec?.already_active && (
-            <p className="m-status covered">
-              <Check size={15} />
-              Also targeted by your active experiment:{" "}
-              {covering.map((e) => e.name).join(", ")}
-            </p>
-          )}
-          <Button
-            className="m-block"
-            onClick={() =>
-              go(
-                !rec
-                  ? "interventions"
-                  : rec.already_active
-                    ? "interventions/active"
-                    : "interventions/plan/" + rec.id,
-              )
-            }
+        {rels.length > 0 ? (
+          <>
+            <Step
+              n={3}
+              eyebrow="Biological process"
+              chip={rels.length ? rels[0].level : "Not inferred"}
+              tone={
+                rels.length
+                  ? rels[0].level === "Hypothesis"
+                    ? "amber"
+                    : "green"
+                  : ""
+              }
+              title={
+                rels.length
+                  ? rels.map((r) => r.process).join(" · ")
+                  : "No biological process inferred"
+              }
+            >
+              <p>
+                {rels.length
+                  ? Array.from(
+                      new Set(rels.map((r) => r.pathway).filter(Boolean)),
+                    ).join(" · ") ||
+                    "An evidence-classified interpretation, not a measured cause."
+                  : "A single cross-sectional panel cannot establish an active mechanism."}
+              </p>
+            </Step>
+            <Step
+              n={4}
+              eyebrow="Aging hallmark"
+              chip={hallmarks.length ? "Not directly measured" : "No mapping"}
+              tone={hallmarks.length ? "purple" : ""}
+              title={
+                hallmarks.length
+                  ? hallmarks.join(" · ")
+                  : "No individual hallmark mapping"
+              }
+            >
+              <p>
+                {hallmarks.length
+                  ? "Linked to this pattern in the Hallmarks of Aging framework. Linked, not proven as the cause."
+                  : "The framework stays visible without claiming it was measured."}
+              </p>
+              <button className="m-link" onClick={() => go("biology/" + d.id)}>
+                Explore the biology <ChevronRight size={16} />
+              </button>
+            </Step>
+          </>
+        ) : (
+          <Step
+            n={3}
+            eyebrow="What we can’t infer"
+            title="The biology needs more evidence"
           >
-            {!rec
-              ? "Explore measurable next steps"
-              : rec.already_active
-                ? "View your active experiment"
-                : "Explore this plan"}
-            <ArrowRight size={18} />
-          </Button>
-        </Step>
+            <p>
+              These records do not establish a specific biological pathway or
+              aging mechanism. Your supporting labs, lifestyle and DNA remain
+              available below.
+            </p>
+            <button className="m-link" onClick={() => go("biology/" + d.id)}>
+              Explore the biology framework <ChevronRight size={16} />
+            </button>
+          </Step>
+        )}
+        {twin === state.twin && (
+          <Step
+            n={rels.length ? 5 : 4}
+            eyebrow="What can move it"
+            chip={rec ? `${rec.level} evidence` : undefined}
+            tone="green"
+            title={rec ? rec.name : "No matching option yet"}
+            last
+          >
+            <p>
+              {rec
+                ? rec.expected_effect
+                : "Add verified baseline measurements to unlock measurable next steps."}
+            </p>
+            {rec?.review_required && (
+              <Badge tone="amber">Professional review</Badge>
+            )}
+            {covering.length > 0 && !rec?.already_active && (
+              <p className="m-status covered">
+                <Check size={15} />
+                Also targeted by your active experiment:{" "}
+                {covering.map((e) => e.name).join(", ")}
+              </p>
+            )}
+            <Button
+              className="m-block"
+              onClick={() =>
+                go(
+                  !rec
+                    ? "interventions"
+                    : rec.already_active
+                      ? "interventions/active"
+                      : "interventions/plan/" + rec.id,
+                )
+              }
+            >
+              {!rec
+                ? "Explore measurable next steps"
+                : rec.already_active
+                  ? "View your active experiment"
+                  : "Explore this plan"}
+              <ArrowRight size={18} />
+            </Button>
+          </Step>
+        )}
       </ol>
     </section>
   );
@@ -916,10 +983,18 @@ export function ExperimentProgressCard({
   onEvaluated: (experiment: RecordData) => void;
   compact?: boolean;
 }) {
-  const { run, busy } = useApp();
+  const { run, busy, state, go, catalog } = useApp();
   const week = experimentWeek(e);
   const targets = Object.entries(e.baseline || {}) as [string, RecordData][];
-  const due = e.status === "Evaluation due";
+  const due =
+    e.status === "Evaluation due" ||
+    Date.now() >=
+      new Date(e.start_date).getTime() +
+        e.planned_duration_weeks * 7 * 86400000;
+  const followUp = followUpMeasurements(e, state.observations);
+  const missing = targets.filter(
+    ([code]) => !followUp.some((o) => o.concept_id === code),
+  );
   const evaluate = async () => {
     const result = await run(
       () => api("/experiments/" + e.id + "/evaluate", { method: "POST" }),
@@ -932,7 +1007,7 @@ export function ExperimentProgressCard({
       <div className="m-row">
         <ProgressRing value={week} total={e.planned_duration_weeks} />
         <div className="m-experiment-copy">
-          <span className="m-eyebrow">Active experiment</span>
+          <span className="m-eyebrow">Your active plan</span>
           <h3>{e.name}</h3>
           <Badge tone={due ? "amber" : "purple"}>
             {e.response?.outcome || e.status}
@@ -941,14 +1016,18 @@ export function ExperimentProgressCard({
       </div>
       {due && (
         <p className="m-due">
-          Your {e.planned_duration_weeks} weeks are complete. Compare your
-          follow-up measurements with the frozen baseline to see whether it
-          worked.
+          {missing.length
+            ? `Your review is due. Add follow-up measurements for ${missing.map(([c]) => catalog.concepts.find((x: RecordData) => x.id === c)?.name || c).join(", ")}. Use the same source as your starting measurements.`
+            : "Your follow-up measurements are available. Review what changed and what remains uncertain."}
         </p>
       )}
       <div className="m-row between m-adherence">
         <span>Reported adherence</span>
-        <strong>{e.adherence}%</strong>
+        <strong>
+          {e.checkins?.length || e.adherence > 0
+            ? `${e.adherence}%`
+            : "Not recorded"}
+        </strong>
       </div>
       <div className="progress-track">
         <span style={{ width: e.adherence + "%" }} />
@@ -969,12 +1048,28 @@ export function ExperimentProgressCard({
       <p className="m-body m-muted">Evaluation date · {date(e.due_date)}</p>
       {due ? (
         <>
-          <Button className="m-block" onClick={evaluate} disabled={busy}>
-            See if it worked <ArrowRight size={18} />
+          <Button
+            className="m-block"
+            onClick={missing.length ? () => go("data") : evaluate}
+            disabled={busy}
+          >
+            {missing.length
+              ? "Add follow-up measurements"
+              : "Review measured response"}{" "}
+            <ArrowRight size={18} />
           </Button>
           <Button variant="secondary" className="m-block" onClick={onCheckIn}>
             Check in <Check size={18} />
           </Button>
+          {missing.length > 0 && followUp.length > 0 && (
+            <button
+              className="m-link m-center"
+              onClick={evaluate}
+              disabled={busy}
+            >
+              Review available response
+            </button>
+          )}
         </>
       ) : (
         <Button className="m-block" onClick={onCheckIn}>
@@ -1459,30 +1554,52 @@ function SourceRow({
 }
 
 export function YouPage() {
-  const { state, me, go, setModal } = useApp();
+  const { state, me, go, setModal, setError } = useApp();
+  const [providers, setProviders] = useState<WearableProvider[] | null>(null);
+  const [providerError, setProviderError] = useState(false);
+  useEffect(() => {
+    setProviderError(false);
+    api("/wearables/providers")
+      .then((r) => setProviders(r.providers))
+      .catch((e) => {
+        setProviderError(true);
+        setError(e.message);
+      });
+  }, [state, setError]);
   const t = state.twin;
   const wearables = state.observations.filter((o: RecordData) =>
     isWearable(o.source),
   );
-  const labs = state.observations.filter(
-    (o: RecordData) => !isWearable(o.source),
+  const labs = state.observations.filter((o: RecordData) =>
+    ["lab_csv", "lab_pdf", "historical_table"].includes(o.source),
   );
   const labDocuments = state.artifacts.filter((a: RecordData) =>
     ["labs", "history"].includes(a.kind),
   ).length;
-  const dna =
-    me.consents.genomics &&
-    state.artifacts.some((a: RecordData) => a.kind === "genomics");
+  const dna = genomicSource(state, me.consents.genomics);
+  const connected = providers?.filter((p) => p.connected) || [];
+  const needsAttention = connected.some(
+    (p) => p.last_sync?.status === "needs_attention",
+  );
+  const lifestyle =
+    t.domains.some((d: RecordData) => d.lifestyle_context?.length) ||
+    [
+      "diet",
+      "exercise_type",
+      "sleep_schedule",
+      "conditions",
+      "medications",
+    ].some((k) => me.profile[k]);
+  const pendingLabs = state.artifacts.some(
+    (a: RecordData) =>
+      ["labs", "history"].includes(a.kind) && a.status === "review_required",
+  );
+  const failedLabs = state.artifacts.some(
+    (a: RecordData) =>
+      ["labs", "history"].includes(a.kind) &&
+      (a.error || a.status === "failed"),
+  );
   const coverage = Math.max(0, Math.min(100, Number(t.coverage) || 0));
-  const missing = !wearables.length
-    ? "Add wearable data to follow recovery and see whether experiments work."
-    : !labs.length
-      ? "Add lab results to establish your biomarker baselines."
-      : !dna
-        ? "DNA adds optional medication context."
-        : "Keep measurements current so trends stay reliable.";
-  const r = 34,
-    c = 2 * Math.PI * r;
   return (
     <div className="m-you">
       <div className="page-heading">
@@ -1507,81 +1624,92 @@ export function YouPage() {
           </small>
         </span>
       </section>
-      <section className="m-card m-coverage">
-        <svg className="m-ring" viewBox="0 0 84 84" aria-hidden="true">
-          <circle
-            cx="42"
-            cy="42"
-            r={r}
-            fill="none"
-            stroke="#e6ece2"
-            strokeWidth="8"
-          />
-          <circle
-            cx="42"
-            cy="42"
-            r={r}
-            fill="none"
-            stroke="#5a7863"
-            strokeWidth="8"
-            strokeLinecap="round"
-            strokeDasharray={c}
-            strokeDashoffset={c * (1 - coverage / 100)}
-            transform="rotate(-90 42 42)"
-          />
-          <text x="42" y="48" textAnchor="middle" className="m-ring-value">
-            {coverage}%
-          </text>
-        </svg>
-        <div>
-          <h2>Core measurement coverage</h2>
-          <p>{missing}</p>
-        </div>
+      <section className="m-card m-source-summary">
+        <span className="m-eyebrow">What Aevum knows</span>
+        <h2>
+          {state.observations.length
+            ? "Your results, connected."
+            : "Build your starting picture."}
+        </h2>
+        <p>
+          {state.observations.length
+            ? `${plural(state.observations.length, "recorded measurement")} available${lifestyle ? ", with lifestyle and health context" : ""}.`
+            : "Start with a lab report or your health and lifestyle information."}
+        </p>
+        <details>
+          <summary>What’s covered and what’s missing</summary>
+          <p>
+            {coverage}% core measurement coverage, averaged across seven
+            domains. This is data availability, not a health score. Optional DNA
+            does not fill measurement gaps.
+          </p>
+          {t.domains.map((d: RecordData) => (
+            <p key={d.id}>
+              <strong>{d.name}</strong> · {domainSummary(d)}
+            </p>
+          ))}
+        </details>
       </section>
       <div className="m-section-head">
         <h2>Your sources</h2>
       </div>
       <SourceRow
-        icon={<Dna size={22} />}
-        tone="purple"
-        title="DNA"
-        detail={
-          !me.consents.genomics
-            ? "Separate permission required"
-            : dna
-              ? plural(state.genomic_findings.length, "contextual finding")
-              : "No genotype file added"
-        }
-        done={Boolean(dna)}
-        onClick={() =>
-          me.consents.genomics
-            ? setModal({ type: "upload", kind: "genomics" })
-            : go("settings")
-        }
-      />
-      <SourceRow
         icon={<FileText size={22} />}
         tone="green"
         title="Lab results"
         detail={
-          labs.length
-            ? `${plural(labDocuments, "source document")} · latest ${date(latest(labs)!)}`
-            : "Upload a PDF or CSV lab report"
+          failedLabs
+            ? "Import needs attention · review source documents"
+            : pendingLabs
+              ? "Received · review needed"
+              : labs.length
+                ? `${plural(labDocuments, "source document")} · latest ${date(latest(labs)!)}`
+                : "Upload a PDF or CSV lab report"
         }
-        done={labs.length > 0}
-        onClick={() => setModal({ type: "upload", kind: "labs" })}
+        done={labs.length > 0 && !pendingLabs && !failedLabs}
+        onClick={() => go(pendingLabs || failedLabs ? "data/sources" : "data")}
+      />
+      <SourceRow
+        icon={<CircleUserRound size={22} />}
+        tone="green"
+        title="Lifestyle & health history"
+        detail={
+          lifestyle
+            ? "Reported information available · review and update"
+            : "Add your habits, preferences and health history"
+        }
+        done={Boolean(lifestyle)}
+        onClick={() => go("data/context")}
       />
       <SourceRow
         icon={<Watch size={22} />}
         tone="amber"
         title="Wearables"
         detail={
-          wearables.length
-            ? `Latest data ${relativeDays(latest(wearables))}`
-            : "Connect a wearable or import an export"
+          !me.consents.wearable
+            ? "Permission needed"
+            : providerError
+              ? "Connection status unavailable · try again"
+              : providers === null
+                ? "Checking connection status…"
+                : needsAttention
+                  ? "Connection needs attention"
+                  : connected.length
+                    ? `${plural(connected.length, "connection")} · ${wearables.length ? `latest data ${relativeDays(latest(wearables))}` : "waiting for measurements"}`
+                    : wearables.length
+                      ? `Imported data · no active connection · ${relativeDays(latest(wearables))}`
+                      : "No active connection · connect or import"
         }
-        done={wearables.length > 0}
-        onClick={() => go("data")}
+        done={connected.length > 0 && !needsAttention && !providerError}
+        onClick={() => go("data/wearables")}
+      />
+      <SourceRow
+        icon={<Dna size={22} />}
+        tone="purple"
+        title="DNA · optional"
+        detail={dna}
+        done={dna.includes("available") || dna.startsWith("Imported")}
+        onClick={() => go(me.consents.genomics ? "data/genetics" : "settings")}
       />
       <Button
         className="m-block"

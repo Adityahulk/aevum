@@ -3,8 +3,6 @@ import json
 from collections import defaultdict
 from datetime import datetime, timezone
 from statistics import mean, median, pstdev
-from wearables import is_wearable
-from domain_evidence import domain_evidence, CONTEXT_LABS
 
 from catalog import (
     CONCEPTS,
@@ -17,6 +15,8 @@ from catalog import (
     ONTOLOGY_VERSION,
     RELATIONSHIPS,
 )
+from domain_evidence import CONTEXT_LABS, domain_evidence
+from wearables import is_wearable
 
 
 def when(o):
@@ -413,6 +413,14 @@ def rank(payload):
         available = [
             c for c in it["targets"] if c in twin["features"] and not twin["features"][c]["stale"]
         ]
+        flagged = [c for c in available if twin["features"][c].get("abnormal")
+                   or twin["features"][c].get("trend") == "Worsening"]
+        # A clinical discussion is personal advice, not a default catalogue item.
+        if it["id"] == "clinical-lipids" and not flagged:
+            continue
+        personal_need = bool(flagged) or any(
+            d.get("severity") in ("Moderate", "Elevated") for d in target
+        )
         goalmatch = {
             "Longevity": target_domains,
             "General health": target_domains,
@@ -425,6 +433,7 @@ def rank(payload):
             "Cognitive health": ["cognitive"],
         }.get(goal, [])
         goalboost = 1.5 if any(d in goalmatch for d in target_domains) else 0
+        matching_goal = goal if goalboost else profile.get("secondary_goal", "")
         if (
             profile.get("secondary_goal")
             and any(
@@ -434,6 +443,16 @@ def rank(payload):
             and it["category"] == "Exercise"
         ):
             goalboost += 0.5
+        basis = "Measured priority" if personal_need else "Goal support" if goalboost else "General option"
+        if flagged:
+            personal_reason = "Based on flagged measurements: " + ", ".join(twin["features"][c]["label"] for c in flagged) + "."
+        elif personal_need:
+            personal_reason = "Relevant to your assessed " + ", ".join(d["name"].lower() for d in target
+                if d.get("severity") in ("Moderate", "Elevated")) + " pattern."
+        elif goalboost:
+            personal_reason = f"Supports your {matching_goal.lower()} goal; your measurements do not establish a need for this change."
+        else:
+            personal_reason = "A general evidence-based option; no personal need has been established."
         blocked = [c for c in it["contraindications"] if c in context]
         interactions = [x for x in it["interactions"] if x in context]
         needs_review = (
@@ -469,6 +488,7 @@ def rank(payload):
             2,
         )
         reasons = [
+            personal_reason,
             f"Targets {', '.join(d['name'].lower() for d in target[:2])}.",
             f"{it['level']} evidence; {'existing baseline available' if available else 'baseline measurement needed'}.",
             f"Ranked for your {goal.lower()} goal; practical burden is {'moderate' if it['burden'] >= 0.4 else 'low'}.",
@@ -496,11 +516,13 @@ def rank(payload):
             {
                 **it,
                 "score": score,
+                "recommendation_basis": basis,
+                "personal_reason": personal_reason,
                 "personal_relevance": "High"
-                if relevance >= 3
+                if personal_need and relevance >= 3
                 else "Moderate"
-                if available
-                else "Unknown",
+                if personal_need
+                else "Goal-aligned" if goalboost else "Not established",
                 "why": reasons,
                 "available_baselines": available,
                 "eligible": not blocked and not needs_review and not active and bool(available),
@@ -518,7 +540,8 @@ def rank(payload):
             }
         )
     return {
-        "recommendations": sorted(results, key=lambda r: (bool(r["blocked_reasons"]), -r["score"])),
+        "recommendations": sorted(results, key=lambda r: (bool(r["blocked_reasons"]),
+            r["recommendation_basis"] != "Measured priority", -r["score"])),
         "knowledge_only": KNOWLEDGE_ONLY,
     }
 

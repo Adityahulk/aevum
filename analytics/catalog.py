@@ -577,7 +577,7 @@ INTERVENTIONS = [
     },
     {
         "id": "clinical-lipids",
-        "name": "Discuss persistent lipid changes with your clinician",
+        "name": "Review flagged lipid results with your clinician",
         "category": "Clinical care",
         "domain": "metabolic",
         "also": ["cardiovascular"],

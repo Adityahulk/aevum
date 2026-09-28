@@ -359,7 +359,7 @@ test("mobile protocol leads to the active experiment and its evaluation", async 
   await tabs.getByRole("link", { name: "Today", exact: true }).click();
   await page
     .locator(".m-experiment")
-    .getByRole("button", { name: "See if it worked" })
+    .getByRole("button", { name: "Review measured response" })
     .click();
   await expect(page).toHaveURL(/#interventions\/experiment\//);
   await expect(page.getByRole("dialog")).toContainText("DID IT WORK?");
@@ -408,6 +408,14 @@ test("voice questions are transcribed, answered and read aloud", async ({
     };
   });
   await demo(page);
+  await page.route("**/api/ai", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    await route.fulfill({ json: {
+      id: "voice-answer", question: route.request().postDataJSON().question,
+      answer: "Your recovery measurements show a recent change. Review the latest sleep and HRV measurements.",
+      mode: "Grounded AI", confidence: "Moderate", claims: [], source_cards: [],
+    } });
+  });
   await page.goto("/#ai");
   await page.getByRole("button", { name: "Ask by voice" }).click();
   await expect(

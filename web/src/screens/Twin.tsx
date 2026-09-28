@@ -23,7 +23,7 @@ import { domainIcons } from "../config";
 import { MobileDomainList, PathwayStory, useIsMobile } from "../mobile";
 import { MeasurementCards } from "../MeasurementCards";
 export function TwinPage() {
-  const { state, route, go, setModal, run, busy } = useApp();
+  const { state, route, go, setModal, run, busy, setError } = useApp();
   const mobile = useIsMobile();
   const [historical, setHistorical] = useState<any>(null);
   const t = historical || state.twin;
@@ -47,7 +47,9 @@ export function TwinPage() {
                 setHistorical(
                   e.target.value ? await api("/twins/" + e.target.value) : null,
                 );
-              } catch {}
+              } catch (e: any) {
+                setError(e.message);
+              }
             }}
           >
             <option value="">Current · v{state.twin.version}</option>
@@ -68,82 +70,112 @@ export function TwinPage() {
           </Button>
         </div>
       </div>
-      <div className="twin-summary card">
-        <div>
-          <span className="eyebrow">OVERALL TRAJECTORY</span>
+      {mobile ? (
+        <section className="m-card m-twin-intro">
+          <span className="m-eyebrow">Your current picture</span>
           <h2>
-            <Activity size={25} />
-            {t.overall_trajectory}
+            {t.domains.filter((d: RecordData) => d.coverage > 0).length} of 7
+            domains have direct measurements
           </h2>
+          <p>
+            {t.observation_count} verified measurements, with supporting context
+            shown in each domain. Missing information is never treated as
+            healthy.
+          </p>
+          {historical && (
+            <p className="m-history-notice">
+              Viewing a saved assessment from {date(t.generated_at)}.{" "}
+              <button className="m-link" onClick={() => setHistorical(null)}>
+                Return to current Twin
+              </button>
+            </p>
+          )}
+        </section>
+      ) : (
+        <div className="twin-summary card">
+          <div>
+            <span className="eyebrow">OVERALL TRAJECTORY</span>
+            <h2>
+              <Activity size={25} />
+              {t.overall_trajectory}
+            </h2>
+          </div>
+          <div>
+            <span className="eyebrow">VERIFIED MEASUREMENTS</span>
+            <strong>{t.observation_count}</strong>
+          </div>
+          <div>
+            <span className="eyebrow">CORE DOMAIN COVERAGE</span>
+            <strong>
+              {t.coverage}
+              <small>%</small>
+            </strong>
+          </div>
+          <div>
+            <span className="eyebrow">MODEL VERSION</span>
+            <strong className="version-text">v{t.version}</strong>
+            <small>{date(t.generated_at)}</small>
+          </div>
         </div>
-        <div>
-          <span className="eyebrow">VERIFIED MEASUREMENTS</span>
-          <strong>{t.observation_count}</strong>
-        </div>
-        <div>
-          <span className="eyebrow">CORE DOMAIN COVERAGE</span>
-          <strong>
-            {t.coverage}
-            <small>%</small>
-          </strong>
-        </div>
-        <div>
-          <span className="eyebrow">MODEL VERSION</span>
-          <strong className="version-text">v{t.version}</strong>
-          <small>{date(t.generated_at)}</small>
-        </div>
-      </div>
+      )}
       {mobile ? (
         <MobileDomainList twin={t} />
       ) : (
-      <div className="twin-domain-grid">
-        {t.domains.map((d: RecordData) => {
-          const Icon = domainIcons[d.id];
-          return (
-            <button
-              className={
-                "card twin-domain " + (!d.coverage ? "unmeasured" : "")
-              }
-              key={d.id}
-              onClick={() => go("twin/" + d.id)}
-            >
-              <div className="row between">
-                <span className={"domain-icon domain-" + d.id}>
-                  <Icon size={21} />
-                </span>
-                <ArrowUpRight size={18} />
-              </div>
-              <h2>{d.name}</h2>
-              <p>{d.subtitle}</p>
-              <div className="row between">
-                <strong>{d.state}</strong>
-                <Trend trend={d.trend} />
-              </div>
-              <div className="coverage">
-                <div>
-                  <span>Measurement coverage</span>
+        <div className="twin-domain-grid">
+          {t.domains.map((d: RecordData) => {
+            const Icon = domainIcons[d.id];
+            return (
+              <button
+                className={
+                  "card twin-domain " + (!d.coverage ? "unmeasured" : "")
+                }
+                key={d.id}
+                onClick={() => go("twin/" + d.id)}
+              >
+                <div className="row between">
+                  <span className={"domain-icon domain-" + d.id}>
+                    <Icon size={21} />
+                  </span>
+                  <ArrowUpRight size={18} />
+                </div>
+                <h2>{d.name}</h2>
+                <p>{d.subtitle}</p>
+                <div className="row between">
+                  <strong>{d.state}</strong>
+                  <Trend trend={d.trend} />
+                </div>
+                <div className="coverage">
+                  <div>
+                    <span>Measurement coverage</span>
+                    <span>
+                      {d.available_group_count ?? d.available_marker_count} of{" "}
+                      {d.configured_group_count ?? d.configured_marker_count}{" "}
+                      groups
+                    </span>
+                  </div>
+                  <div
+                    className="progress-track"
+                    title="Availability of configured markers, not a health score"
+                  >
+                    <span style={{ width: d.coverage + "%" }} />
+                  </div>
+                  <small className="coverage-note">
+                    Core measurement groups · not a health score
+                  </small>
+                </div>
+                <div className="row between text-small muted">
+                  <span>{d.confidence} confidence</span>
                   <span>
-                    {d.available_group_count ?? d.available_marker_count} of {d.configured_group_count ?? d.configured_marker_count} groups
+                    {d.signals.length} direct · {d.context_count || 0} context
                   </span>
                 </div>
-                <div
-                  className="progress-track"
-                  title="Availability of configured markers, not a health score"
-                >
-                  <span style={{ width: d.coverage + "%" }} />
-                </div>
-                <small className="coverage-note">Core measurement groups · not a health score</small>
-              </div>
-              <div className="row between text-small muted">
-                <span>{d.confidence} confidence</span>
-                <span>{d.signals.length} direct · {d.context_count || 0} context</span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+              </button>
+            );
+          })}
+        </div>
       )}
-      <section className="card timeline-section">
+      <details className="card timeline-section twin-history" open={!mobile}>
+        <summary>Assessment history</summary>
         <SectionTitle
           eyebrow="YOUR LONGITUDINAL RECORD"
           title="A story that keeps evolving"
@@ -169,7 +201,7 @@ export function TwinPage() {
               </button>
             ))}
         </div>
-      </section>
+      </details>
     </>
   );
 }
@@ -201,10 +233,10 @@ export function DomainDetail({ d, twin }: { d: RecordData; twin: RecordData }) {
         </div>
         <Button variant="secondary" onClick={() => go("ai/" + d.id)}>
           <Sparkles size={16} />
-          Ask why
+          {twin === state.twin ? "Ask why" : "Ask about current data"}
         </Button>
       </div>
-      {mobile && twin === state.twin && <PathwayStory d={d} />}
+      {mobile && <PathwayStory d={d} twin={twin} />}
       <div className="domain-metrics card">
         {[
           ["Current state", d.state],
@@ -264,7 +296,8 @@ export function DomainDetail({ d, twin }: { d: RecordData; twin: RecordData }) {
                     {selected.reference_status}
                   </Badge>
                   <span className="muted">
-                    Longitudinal trend: {selected.trend}. {selected.longitudinal_status}.
+                    Longitudinal trend: {selected.trend}.{" "}
+                    {selected.longitudinal_status}.
                   </span>
                 </div>
               </div>
@@ -277,51 +310,51 @@ export function DomainDetail({ d, twin }: { d: RecordData; twin: RecordData }) {
               <MeasurementCards signals={d.signals} />
             </section>
           ) : (
-          <section className="card evidence-table-panel">
-            <SectionTitle title="What supports this" />
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Measurement</th>
-                    <th>Current</th>
-                    <th>Personal baseline</th>
-                    <th>Change</th>
-                    <th>Measured</th>
-                    <th>Source</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {d.signals.map((s: RecordData) => (
-                    <tr key={s.concept_id}>
-                      <td>
-                        <strong>{s.label}</strong>
-                        {s.stale && <Badge tone="amber">Stale</Badge>}
-                      </td>
-                      <td>
-                        {s.current} <span className="muted">{s.unit}</span>
-                      </td>
-                      <td>{s.baseline ?? "—"}</td>
-                      <td>
-                        {s.personal_change_pct != null
-                          ? `${s.personal_change_pct > 0 ? "+" : ""}${s.personal_change_pct}%`
-                          : "—"}
-                      </td>
-                      <td>{shortDate(s.latest_date)}</td>
-                      <td>
-                        <button
-                          className="text-button"
-                          onClick={() => go("data/" + s.concept_id)}
-                        >
-                          View data <ArrowUpRight size={13} />
-                        </button>
-                      </td>
+            <section className="card evidence-table-panel">
+              <SectionTitle title="What supports this" />
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Measurement</th>
+                      <th>Current</th>
+                      <th>Personal baseline</th>
+                      <th>Change</th>
+                      <th>Measured</th>
+                      <th>Source</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+                  </thead>
+                  <tbody>
+                    {d.signals.map((s: RecordData) => (
+                      <tr key={s.concept_id}>
+                        <td>
+                          <strong>{s.label}</strong>
+                          {s.stale && <Badge tone="amber">Stale</Badge>}
+                        </td>
+                        <td>
+                          {s.current} <span className="muted">{s.unit}</span>
+                        </td>
+                        <td>{s.baseline ?? "—"}</td>
+                        <td>
+                          {s.personal_change_pct != null
+                            ? `${s.personal_change_pct > 0 ? "+" : ""}${s.personal_change_pct}%`
+                            : "—"}
+                        </td>
+                        <td>{shortDate(s.latest_date)}</td>
+                        <td>
+                          <button
+                            className="text-button"
+                            onClick={() => go("data/" + s.concept_id)}
+                          >
+                            View data <ArrowUpRight size={13} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           )}
           <div className="two-columns">
             <section className="card interpretation-card">

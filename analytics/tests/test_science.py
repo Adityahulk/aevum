@@ -232,7 +232,33 @@ def test_contraindications_are_hard_gates():
     r = rank({"twin": t, "profile": {"goal": "Performance", "symptoms": "chest pain"}})
     aerobic = next(r for r in r["recommendations"] if r["id"] == "aerobic")
     assert not aerobic["eligible"]
+    secondary = rank({"twin": model([]), "profile": {"goal": "Recovery", "secondary_goal": "Performance"}})["recommendations"]
+    strength = next(r for r in secondary if r["id"] == "strength")
+    assert strength["recommendation_basis"] == "Goal support"
+    assert "performance" in strength["personal_reason"]
     assert "chest pain" in aerobic["blocked_reasons"]
+
+
+def test_normal_lipids_do_not_create_a_clinical_priority_or_personal_need():
+    results = rank({"twin": model([obs(value=70)]), "profile": {"goal": "Performance"}})["recommendations"]
+    assert not any(r["id"] == "clinical-lipids" for r in results)
+    nutrition = next(r for r in results if r["id"] == "nutrition")
+    assert nutrition["available_baselines"] == ["APOB"]
+    assert nutrition["personal_relevance"] == "Not established"
+    assert nutrition["recommendation_basis"] == "General option"
+    aerobic = next(r for r in results if r["id"] == "aerobic")
+    assert aerobic["recommendation_basis"] == "Goal support"
+    assert not aerobic["eligible"]
+
+
+def test_clinical_lipids_require_a_current_flagged_target():
+    results = rank({"twin": model([obs(value=140)])})["recommendations"]
+    clinical = next(r for r in results if r["id"] == "clinical-lipids")
+    assert "ApoB" in clinical["personal_reason"]
+    assert clinical["review_required"] and not clinical["eligible"]
+    assert "persistent" not in clinical["name"].lower()
+    stale = rank({"twin": model([obs(value=140, days=400)])})["recommendations"]
+    assert not any(r["id"] == "clinical-lipids" for r in stale)
 
 
 def test_supplements_default_off_and_review_required():

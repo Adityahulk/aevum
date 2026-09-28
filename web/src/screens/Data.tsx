@@ -29,15 +29,44 @@ export function DataPage() {
   const [tab, setTab] = useState(
       new URLSearchParams(window.location.search).has("connected")
         ? "Wearables"
-        : "Bloodwork",
+        : (
+            {
+              wearables: "Wearables",
+              context: "Personal context",
+              genetics: "Genetics",
+              sources: "Source documents",
+            } as Record<string, string>
+          )[route.split("/")[1]] || "Bloodwork",
     ),
-    [query, setQuery] = useState(route.split("/")[1] || ""),
+    [query, setQuery] = useState(
+      ["wearables", "context", "genetics", "sources"].includes(
+        route.split("/")[1],
+      )
+        ? ""
+        : route.split("/")[1] || "",
+    ),
     [providers, setProviders] = useState<WearableProvider[]>([]),
     [providerId, setProviderId] = useState(
       new URLSearchParams(window.location.search).get("connected") || "oura",
     ),
     [draft, setDraft] = useState<any>(null),
     [historical, setHistorical] = useState<RecordData[]>([]);
+  useEffect(() => {
+    const target = route.split("/")[1];
+    const tabs: Record<string, string> = {
+      wearables: "Wearables",
+      context: "Personal context",
+      genetics: "Genetics",
+      sources: "Source documents",
+    };
+    setTab(
+      tabs[target] ||
+        (!target && new URLSearchParams(window.location.search).has("connected")
+          ? "Wearables"
+          : "Bloodwork"),
+    );
+    setQuery(tabs[target] ? "" : target || "");
+  }, [route]);
   useEffect(() => {
     api("/wearables/providers")
       .then((result) => {
@@ -61,7 +90,9 @@ export function DataPage() {
   const labDocumentCount = state.artifacts.filter((a: RecordData) =>
     ["labs", "history"].includes(a.kind),
   ).length;
-  const confirmedHistory = historical.filter((record) => record.status === "confirmed");
+  const confirmedHistory = historical.filter(
+    (record) => record.status === "confirmed",
+  );
   const historyArtifactIds = new Set(
     confirmedHistory.map((record) => String(record.artifact_id)),
   );
@@ -73,33 +104,39 @@ export function DataPage() {
   );
   const archivedRows = confirmedHistory.flatMap((archive) => {
     const parsedBySource = new Map(
-      (archive.rows || []).map((row: RecordData) => [row.source_record_id, row]),
+      (archive.rows || []).map((row: RecordData) => [
+        row.source_record_id,
+        row,
+      ]),
     );
-    return (archive.measurements || []).map((measurement: RecordData, index: number) => {
-      const locator = `${measurement.source_sha256}:${measurement.source_page ?? measurement.source_line ?? index}:${measurement.name}`;
-      const parsed = parsedBySource.get(locator) as RecordData | undefined;
-      const observation = observationsBySourceRecord.get(locator) as RecordData | undefined;
-      return {
-        id: `historical-${archive.id}-${index}`,
-        label: measurement.name,
-        concept_id: parsed?.concept_id || "SOURCE_RECORD",
-        value: measurement.value,
-        unit: measurement.unit,
-        effective_time: measurement.date,
-        reference_range: {
-          low: measurement.reference_low,
-          high: measurement.reference_high,
-        },
-        provenance_id: archive.artifact_id,
-        source:
-          measurement.source_kind === "original_lab"
-            ? "lab_pdf"
-            : "historical_table",
-        modeled: Boolean(parsed),
-        observation,
-        historical: true,
-      };
-    });
+    return (archive.measurements || []).map(
+      (measurement: RecordData, index: number) => {
+        const locator = `${measurement.source_sha256}:${measurement.source_page ?? measurement.source_line ?? index}:${measurement.name}`;
+        const parsed = parsedBySource.get(locator) as RecordData | undefined;
+        const observation = observationsBySourceRecord.get(locator) as
+          RecordData | undefined;
+        return {
+          id: `historical-${archive.id}-${index}`,
+          label: measurement.name,
+          concept_id: parsed?.concept_id || "SOURCE_RECORD",
+          value: measurement.value,
+          unit: measurement.unit,
+          effective_time: measurement.date,
+          reference_range: {
+            low: measurement.reference_low,
+            high: measurement.reference_high,
+          },
+          provenance_id: archive.artifact_id,
+          source:
+            measurement.source_kind === "original_lab"
+              ? "lab_pdf"
+              : "historical_table",
+          modeled: Boolean(parsed),
+          observation,
+          historical: true,
+        };
+      },
+    );
   });
   const baseRows =
     tab === "Wearables"
@@ -108,16 +145,17 @@ export function DataPage() {
           ...archivedRows,
           ...state.observations.filter(
             (o: RecordData) =>
-              !isWearable(o.source) && !historyArtifactIds.has(String(o.provenance_id)),
+              !isWearable(o.source) &&
+              !historyArtifactIds.has(String(o.provenance_id)),
           ),
         ];
   const rows = baseRows
     .filter(
       (o: RecordData) =>
         !query ||
-          (o.label + " " + o.concept_id)
-            .toLowerCase()
-            .includes(query.toLowerCase()),
+        (o.label + " " + o.concept_id)
+          .toLowerCase()
+          .includes(query.toLowerCase()),
     )
     .sort((a: RecordData, b: RecordData) =>
       b.effective_time.localeCompare(a.effective_time),
@@ -394,7 +432,9 @@ export function DataPage() {
                         <small>{o.concept_id}</small>
                         {o.historical && (
                           <Badge tone={o.modeled ? "green" : "amber"}>
-                            {o.modeled ? "Verified measurement" : "Preserved source result"}
+                            {o.modeled
+                              ? "Verified measurement"
+                              : "Preserved source result"}
                           </Badge>
                         )}
                       </td>
@@ -589,6 +629,50 @@ export function DataPage() {
                 </div>
               ))}
             </dl>
+            {confirmedHistory.some(
+              (record) => record.lifestyle?.facts?.length,
+            ) && (
+              <details className="reported-history">
+                <summary>Previously supplied questionnaire answers</summary>
+                <p className="muted">
+                  These answers retain their original date. Use Update to record
+                  your current circumstances; original records stay preserved.
+                </p>
+                {confirmedHistory
+                  .filter((record) => record.lifestyle?.facts?.length)
+                  .map((record) => (
+                    <section key={record.id}>
+                      <h3>
+                        {record.lifestyle.collected_at
+                          ? date(record.lifestyle.collected_at)
+                          : "Date not recorded"}
+                      </h3>
+                      <dl>
+                        {record.lifestyle.facts.map(
+                          (fact: RecordData, index: number) => (
+                            <div key={index}>
+                              <dt>
+                                {fact.label ||
+                                  fact.concept?.replaceAll("_", " ") ||
+                                  fact.source_pointer
+                                    ?.split("/")
+                                    .at(-1)
+                                    ?.replaceAll("_", " ") ||
+                                  "Reported answer"}
+                              </dt>
+                              <dd>
+                                {typeof fact.value === "object"
+                                  ? JSON.stringify(fact.value)
+                                  : String(fact.value ?? "Not recorded")}
+                              </dd>
+                            </div>
+                          ),
+                        )}
+                      </dl>
+                    </section>
+                  ))}
+              </details>
+            )}
           </section>
           <section className="card context-card">
             <SectionTitle
@@ -856,7 +940,8 @@ export function ReviewModal({
   const [checked, setChecked] = useState(false);
   const mobile = useIsMobile();
   const [cursor, setCursor] = useState(0);
-  const pendingReview = mobile && draft.kind !== "genomics" && cursor < rows.length;
+  const pendingReview =
+    mobile && draft.kind !== "genomics" && cursor < rows.length;
   const update = (i: number, key: string, value: any) =>
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [key]: value } : r)));
   const addMissed = () =>
@@ -1063,7 +1148,10 @@ export function ReviewModal({
       )}
       <Button
         disabled={
-          !checked || busy || pendingReview || (!ack && draft.errors?.length > 0)
+          !checked ||
+          busy ||
+          pendingReview ||
+          (!ack && draft.errors?.length > 0)
         }
         onClick={async () => {
           const result = await run(

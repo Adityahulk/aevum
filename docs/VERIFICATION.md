@@ -41,3 +41,14 @@ Desktop (1440px) and mobile (390px) screens were inspected. No horizontal page o
 - **Pilot operations:** public TLS, secrets/key rotation, backup/restore, email verification/recovery, monitoring, jurisdictional compliance review and multi-instance worker coordination remain operator release work. No claim of certification or production deployment is made.
 
 The deliverable is a working local research MVP with the complete intelligence loop, a reviewable scientific model, and a deployment path. Remaining external dependencies and validation gates are not silently represented as completed.
+
+## Mobile product refinement — September 28, 2026
+
+- Today scopes conclusions to assessed measurements and dates; review-pending imports and active-plan follow-up have explicit actions.
+- Recommendations distinguish measured priorities, goal support and general options. Clinical lipid review requires a current flagged target; normal results and available baselines alone do not establish personal need.
+- Twin retains seven domains, exposes supporting context in incomplete domains, and condenses unsupported pathway steps. Historical views use their own relationships.
+- Protocol uses existing experiment persistence, eligibility, check-ins and response evaluation. Mobile suggestions exclude active plans; missing follow-up leads to data collection, while partial results remain reviewable.
+- Ask presents a direct answer, actions and visible limitations, with expandable explanations and sources. Earlier saved responses are labeled, not deleted. Desktop keeps its existing presentation.
+- You distinguishes source review, imported DNA context, historical wearable imports, active connections and connection errors. Imported questionnaire answers retain their original dates alongside editable current context.
+- Verification: 78 analytics tests; 19 browser journeys including desktop/mobile accessibility, consent, imports, voice, source navigation and follow-up. A focused final mobile run also covers OAuth return navigation and simulated keyboard resizing. Production build and TypeScript checks pass.
+- Visual inspection uses synthetic demo data at mobile widths. Real-device Safari keyboard behavior, prospective user pilot feedback and production deployment are separate from local verification; they are not claimed by these tests.
