@@ -410,11 +410,18 @@ test("voice questions are transcribed, answered and read aloud", async ({
   await demo(page);
   await page.route("**/api/ai", async (route) => {
     if (route.request().method() !== "POST") return route.continue();
-    await route.fulfill({ json: {
-      id: "voice-answer", question: route.request().postDataJSON().question,
-      answer: "Your recovery measurements show a recent change. Review the latest sleep and HRV measurements.",
-      mode: "Grounded AI", confidence: "Moderate", claims: [], source_cards: [],
-    } });
+    await route.fulfill({
+      json: {
+        id: "voice-answer",
+        question: route.request().postDataJSON().question,
+        answer:
+          "Your recovery measurements show a recent change. Review the latest sleep and HRV measurements.",
+        mode: "Grounded AI",
+        confidence: "Moderate",
+        claims: [],
+        source_cards: [],
+      },
+    });
   });
   await page.goto("/#ai");
   await page.getByRole("button", { name: "Ask by voice" }).click();
@@ -487,4 +494,40 @@ test("mobile navigation and every screen fit the viewport", async ({
   await expect(
     page.getByRole("heading", { name: "You", exact: true }),
   ).toBeVisible();
+});
+
+test("Ask displays conversational answers without claims, citations or confidence badges", async ({
+  page,
+}) => {
+  await demo(page);
+  await page.route("**/api/ai/history", (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/ai", (route) =>
+    route.fulfill({
+      json: {
+        id: "personal-answer",
+        question: "What workout suits me?",
+        mode: "Personal AI",
+        answer:
+          "Based on your preference for home training, start gradually.\n1. Choose two manageable sessions.\n2. Review how you recover.",
+        claims: [],
+        source_cards: [],
+        evidence: [],
+        suggestions: [],
+        provenance: { observation_ids: [], twin_version: 1 },
+      },
+    }),
+  );
+  await page.getByRole("link", { name: "Ask Aevum" }).click();
+  await page.locator("#question").fill("What workout suits me?");
+  await page
+    .getByRole("button", { name: "Send question", exact: true })
+    .click();
+  const answer = page.locator(".assistant-message");
+  await expect(answer).toContainText("home training");
+  await expect(answer).not.toContainText("undefined");
+  await expect(answer).not.toContainText("confidence");
+  await expect(answer.locator(".ai-claims")).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(answer).toContainText("home training");
+  await expect(answer.locator(".m-legacy-answer")).toHaveCount(0);
 });

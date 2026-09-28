@@ -1,7 +1,7 @@
 import os
 import secrets
 
-from assistant import LlmUnavailable, UngroundedAnswer, answer
+from assistant import LlmUnavailable, answer
 from cache import public_catalog
 from catalog import (
     CONCEPTS,
@@ -17,7 +17,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from history_import import parse_history
 from ingestion import normalized_row, parse_upload
-from llm import configured_provider, last_routing_error
+from llm import configured_provider
 from retrieval import corpus, embed, search
 
 app = FastAPI(title="Aevum scientific service", version="0.1.0", docs_url=None, redoc_url=None)
@@ -51,7 +51,7 @@ def health():
             "configured": bool(llm),
             "provider": llm["provider"] if llm else None,
             "model": llm["model"] if llm else None,
-            "last_error": last_routing_error(),
+            "last_error": None,
         },
     }
 
@@ -115,14 +115,6 @@ def guide(p: dict):
     except LlmUnavailable as exc:
         return JSONResponse(
             {"detail": str(exc), "code": "ask_model_unavailable"}, status_code=503
-        )
-    except UngroundedAnswer:
-        return JSONResponse(
-            {
-                "detail": "Ask Aevum could not verify the model response against your Twin.",
-                "code": "ask_answer_ungrounded",
-            },
-            status_code=502,
         )
 
 

@@ -10,9 +10,9 @@ flowchart LR
   Java --> Objects[Encrypted immutable artifacts]
   Java --> Python[Python scientific service]
   Python --> Corpus[Curated evidence / lexical vectors]
-  Python --> AskContext[Question-relevant Twin projection]
+  Python --> AskContext[Personal record + progression + conversation]
   AskContext --> LLM[OpenAI Responses API]
-  LLM --> Validator[Schema + citation validator]
+  LLM --> Answer[Conversational answer + optional references]
   Java --> Twin[Immutable Twin snapshots]
   Twin --> Experiment[Baseline / experiment / response]
   Experiment --> Twin
@@ -74,11 +74,11 @@ The initial worker is designed for one API instance. Horizontal scaling requires
 
 Ask Aevum is an LLM-generated explanation layer over the authoritative structured model. The API verifies health and AI consent, resolves the person from the session, and passes the current Twin, reported context, ranked interventions, experiments and consent-gated curated genomic findings to the private analytics service.
 
-The analytics service selects the question's domain and assembles a compact context of relevant domain state, verified measurement summaries, biological relationships, lifestyle/medical context, intervention rationale, response records and curated evidence. Each item receives an opaque source identifier. Source files, raw genotype rows, unrelated measurements and account identity are excluded.
+The analytics service includes every available measurement summary, dated progression, wearable baseline, domain summary, lifestyle fact, curated DNA finding, recommendation and experiment. Account identifiers, original source files and raw genotype rows are excluded. Measurement histories retain up to 60 points (first plus recent points, with truncation disclosed); the Twin supplies its computed history windows, not an unlimited lifetime archive. Six recent conversation turns provide continuity.
 
-The private service makes one request to the OpenAI Responses API with storage disabled and a strict JSON Schema. The model must distinguish observation, interpretation, guidance and uncertainty and cite exact context identifiers for every claim. The server rejects the entire answer if any citation is absent or unknown. It then derives displayed observation, relationship and evidence provenance from the cited server-side sources. Missing credentials, provider failures and invalid output return a clear unavailable response; no deterministic text is presented as a chatbot answer.
+One OpenAI Responses API call, with storage disabled, produces a conversational answer and optional source IDs and follow-up questions. The prompt allows general knowledge while requiring personal facts to come from the record or explicit user reports. There are no per-claim citation requirements, confidence scores, domain keyword routing, repair calls or deterministic answer fallback. References are resolved against server-owned records; unknown links are omitted without rejecting the answer. Source presence does not establish factual correctness.
 
-The single-call design, question-aware context pruning, capped output and configurable small model reduce latency. `OPENAI_SERVICE_TIER=fast` is an optional paid latency optimization where supported; standard processing remains the default.
+Provider refusals are displayed as conversational responses. Real transport, credentials, empty-output and incomplete-output failures remain errors. The model has no live web retrieval: it must not pretend to have searched current research. Existing saved claim-format responses remain readable in the UI.
 
 Evidence retrieval is limited to curated source summaries. Structured metadata and signed feature-hash vectors are both retained. The optional pgvector query uses the same representation as local cosine search; vectors are lexical features, not a learned semantic model. There is no autonomous, unreviewed paper-to-intervention publishing pipeline.
 

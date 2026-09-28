@@ -108,7 +108,7 @@ export function AIPage() {
         {!mobile && (
           <Badge tone="purple">
             <span className="status-dot" />
-            {messages[messages.length - 1]?.mode || "Grounded guide"}
+            {messages[messages.length - 1]?.mode || "Personal AI"}
           </Badge>
         )}
       </div>
@@ -169,17 +169,18 @@ export function AIPage() {
                     <strong>Aevum</strong>
                     {!mobile && (
                       <span className="muted text-small">
-                        {m.mode} · {m.confidence || m.claims?.[0]?.confidence}{" "}
-                        confidence
+                        {m.mode}
+                        {m.confidence ? ` · ${m.confidence} confidence` : ""}
                       </span>
                     )}
                   </div>
-                  {mobile && m.mode !== "Grounded AI" && (
-                    <p className="m-legacy-answer">
-                      Saved response from an earlier version · ask again for an
-                      updated answer.
-                    </p>
-                  )}
+                  {mobile &&
+                    !["Grounded AI", "Personal AI"].includes(m.mode) && (
+                      <p className="m-legacy-answer">
+                        Saved response from an earlier version · ask again for
+                        an updated answer.
+                      </p>
+                    )}
                   {!mobile && m.mode_detail && (
                     <p className="muted text-small mode-detail">
                       {m.mode_detail}
@@ -256,8 +257,7 @@ export function AIPage() {
                     <p className="ai-medical-boundary">{m.medical_boundary}</p>
                   )}
                   <div className="claim-sources">
-                    {!mobile ||
-                    m.provenance?.observation_ids?.length ||
+                    {m.provenance?.observation_ids?.length ||
                     m.claims?.[0]?.observation_ids?.length ? (
                       <button onClick={() => go("data")}>
                         <Database size={13} />
@@ -298,7 +298,9 @@ export function AIPage() {
                         {speech.speakingId === m.id ? "Stop" : "Listen"}
                       </button>
                     )}
-                    {!mobile && <Badge>{m.claims?.[0]?.model_version}</Badge>}
+                    {!mobile && m.claims?.[0]?.model_version && (
+                      <Badge>{m.claims[0].model_version}</Badge>
+                    )}
                   </div>
                   <details className="claim-details">
                     <summary>
@@ -311,8 +313,9 @@ export function AIPage() {
                         {m.created_at
                           ? new Date(m.created_at).toLocaleDateString() + " · "
                           : ""}
-                        {m.mode} · {m.confidence || m.claims?.[0]?.confidence}{" "}
-                        confidence · Twin{" "}
+                        {m.mode}
+                        {m.confidence ? ` · ${m.confidence} confidence` : ""} ·
+                        Twin{" "}
                         {m.provenance?.twin_version || "version not recorded"}
                         {m.mode_detail ? ` · ${m.mode_detail}` : ""}
                       </p>
@@ -417,7 +420,7 @@ export function AIPage() {
       <p className="ai-footnote">
         {mobile
           ? "Answers use the health information you’ve shared. You can inspect their sources above. Aevum does not diagnose or prescribe."
-          : "Ask uses a consent-gated, question-relevant view of your structured Twin. Every displayed claim must link to that context. It does not diagnose or prescribe."}
+          : "Ask uses your available health data and conversation alongside general knowledge. References identify records used; they do not verify every statement."}
         {voice.supported &&
           " Voice questions are transcribed by your browser’s speech service and sent like typed text."}
       </p>
