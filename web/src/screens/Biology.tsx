@@ -18,11 +18,16 @@ export function BiologyPage() {
   const { state, catalog, route, go, setModal } = useApp();
   const measuredDomains = state.twin.domains;
   const requested = route.split("/")[1];
-  const selected = measuredDomains.some((domain: RecordData) => domain.id === requested)
+  const selected = measuredDomains.some(
+    (domain: RecordData) => domain.id === requested,
+  )
     ? requested
     : state.twin.priorities.find((id: string) =>
         measuredDomains.some((domain: RecordData) => domain.id === id),
-      ) || measuredDomains[0]?.id || requested || "metabolic";
+      ) ||
+      measuredDomains[0]?.id ||
+      requested ||
+      "metabolic";
   const d = state.twin.domains.find((d: RecordData) => d.id === selected);
   const rels = state.twin.relationships.filter(
     (r: RecordData) => r.domain === selected,
@@ -120,7 +125,9 @@ export function BiologyPage() {
                   className="graph-node phenotype-node"
                   onClick={() =>
                     setNode({
-                      title: d.phenotype || "No concerning phenotype established",
+                      title:
+                        d.phenotype ||
+                        "No phenotype inferred from the available data",
                       type: "Phenotype inference",
                       text: d.phenotype
                         ? `${d.state}, ${d.confidence.toLowerCase()} confidence. Multiple signals are interpreted together. This is not a diagnosis.`
@@ -129,7 +136,10 @@ export function BiologyPage() {
                   }
                 >
                   <Layers size={22} />
-                  <strong>{d.phenotype || "No concerning phenotype established"}</strong>
+                  <strong>
+                    {d.phenotype ||
+                      "No phenotype inferred from the available data"}
+                  </strong>
                   <Badge tone={d.phenotype ? "purple" : "green"}>
                     {d.confidence} confidence
                   </Badge>
@@ -174,7 +184,8 @@ export function BiologyPage() {
                     <Badge>Not inferred</Badge>
                     <strong>No biological process inferred</strong>
                     <span className="text-small muted">
-                      A single cross-sectional panel cannot establish an active mechanism.
+                      A single cross-sectional panel cannot establish an active
+                      mechanism.
                     </span>
                   </div>
                 )}
@@ -217,13 +228,19 @@ export function BiologyPage() {
                     <Dna size={22} />
                     <strong>No individual hallmark mapping</strong>
                     <span className="text-small muted">
-                      The framework remains visible without claiming it was measured.
+                      The framework remains visible without claiming it was
+                      measured.
                     </span>
                   </div>
                 )}
               </div>
             </div>
-            {d.signals.length > 5 && <p className="muted text-small">Showing five measurements in the map. All {d.signals.length} are listed in the domain data below.</p>}
+            {d.signals.length > 5 && (
+              <p className="muted text-small">
+                Showing five measurements in the map. All {d.signals.length} are
+                listed in the domain data below.
+              </p>
+            )}
             <div className="graph-legend">
               <span>
                 <i className="solid-line" />
@@ -237,8 +254,15 @@ export function BiologyPage() {
             </div>
           </>
         ) : (
-          <Empty title={d?.context_count ? "Supporting context available; direct measurements needed" : "Direct measurements needed"}>
-            Review the data and missing measurements below. A biological mechanism cannot be inferred from supporting context alone.
+          <Empty
+            title={
+              d?.context_count
+                ? "Supporting context available; direct measurements needed"
+                : "Direct measurements needed"
+            }
+          >
+            Review the data and missing measurements below. A biological
+            mechanism cannot be inferred from supporting context alone.
           </Empty>
         )}
       </section>

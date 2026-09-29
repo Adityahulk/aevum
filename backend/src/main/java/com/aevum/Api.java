@@ -166,14 +166,15 @@ class SecurityConfiguration implements WebMvcConfigurer {
                 if ("cross-site".equals(fetch))
                   throw new Api.Failure(403, "Cross-site requests are not allowed");
                 if (r.getRequestURI().startsWith("/api/auth/")) {
-                  String key = r.getRemoteAddr();
+                  String key = r.getRemoteAddr() + ":" + r.getRequestURI();
+                  int limit = r.getRequestURI().equals("/api/auth/demo") ? 60 : 20;
                   long now = System.currentTimeMillis();
                   var list =
                       attempts.computeIfAbsent(
                           key, k -> Collections.synchronizedList(new ArrayList<>()));
                   synchronized (list) {
                     list.removeIf(t -> t < now - 60000);
-                    if (list.size() >= 20)
+                    if (list.size() >= limit)
                       throw new Api.Failure(429, "Too many attempts. Please wait a minute.");
                     list.add(now);
                   }

@@ -14,7 +14,7 @@ import {
   Upload,
   SlidersHorizontal,
 } from "lucide-react";
-import { api, post, date, RecordData } from "../api";
+import { api, post, date, RecordData, trackProductEvent } from "../api";
 import { Badge, Button, Empty, Modal } from "../components";
 import { useApp } from "../context";
 import { CheckInSheet, ExperimentProgressCard, useIsMobile } from "../mobile";
@@ -157,8 +157,8 @@ export function InterventionsPage() {
               Strong human evidence only
             </label>
           </details>
-          <div className="recommendation-list">
-            {suggestions.map((r: RecordData, i: number) => (
+          {(() => {
+            const cards = suggestions.map((r: RecordData, i: number) => (
               <article
                 className={
                   "card recommendation " + (i === 0 ? "top-recommendation" : "")
@@ -280,8 +280,21 @@ export function InterventionsPage() {
                   )}
                 </div>
               </article>
-            ))}
-          </div>
+            ));
+            return (
+              <>
+                <div className="recommendation-list">
+                  {mobile ? cards.slice(0, 1) : cards}
+                </div>
+                {mobile && cards.length > 1 && (
+                  <details className="m-alternative-options">
+                    <summary>Explore {cards.length - 1} other options</summary>
+                    <div className="recommendation-list">{cards.slice(1)}</div>
+                  </details>
+                )}
+              </>
+            );
+          })()}
           {!suggestions.length && (
             <Empty title="No options match your filters">
               Adjust your evidence and supplement preferences, or add more data.
@@ -478,6 +491,7 @@ export function InterventionsPage() {
                 "Your experiment has started. Baseline saved.",
               );
               if (result) {
+                void trackProductEvent("experiment_started");
                 setSelected(null);
                 go("interventions/active");
               }
@@ -656,12 +670,13 @@ export function ExperimentModal({
             </Button>
             <Button
               disabled={busy}
-              onClick={() =>
-                run(
+              onClick={async () => {
+                const result = await run(
                   () => post("/experiments/" + e.id + "/evaluate"),
                   "Response evaluated; your Twin has been updated",
-                )
-              }
+                );
+                if (result) void trackProductEvent("follow_up_completed");
+              }}
             >
               Evaluate response <ArrowRight size={16} />
             </Button>

@@ -30,6 +30,8 @@ export async function api<T = any>(
 }
 export const post = (path: string, data: unknown = {}) =>
   api(path, { method: "POST", body: JSON.stringify(data) });
+export const trackProductEvent = (name: string) =>
+  post("/product-events", { name }).catch(() => undefined);
 export const date = (d: string) =>
   new Date(d).toLocaleDateString("en-US", {
     month: "short",

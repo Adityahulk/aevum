@@ -5588,11 +5588,29 @@ p.m-status {
   .claim-sources button { font-size: 12px; padding: 9px 12px; }
   .assistant-message .claim-details { order: 6; font-size: 12px; }
   .assistant-message .ai-follow-ups { order: 7; }
-  .m-legacy-answer { font-size: 12px; color: #78603c; padding: 12px; background: #faf4e9; border-radius: 10px; }
   .ai-source-list { overflow-wrap: anywhere; }
   .chat-composer { left: 14px; right: 14px; width: auto; box-shadow: 0 6px 28px #20362d12; }
   .chat-composer input { min-width: 0; font-size: 16px; }
   .ai-page .ai-footnote { font-size: 11px; line-height: 1.6; }
   .m-today .page-footer { display: none; }
   summary:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid #587361; outline-offset: 3px; }
+}
+
+.m-alternative-options { margin-top: 16px; }
+.m-alternative-options > summary { cursor: pointer; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; color: #536258; font-weight: 600; }
+.m-alternative-options[open] > summary { margin-bottom: 14px; }
+.ai-archived-answer { margin: 14px 0; padding: 16px; border: 1px solid #e7dfd2; border-radius: 14px; background: #faf8f4; }
+.ai-archived-answer p { margin: 6px 0 10px; color: #6c706c; line-height: 1.5; }
+.ai-archived-answer ~ * { display: none; }
+.data-start-here { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 24px 28px; margin-bottom: 22px; background: linear-gradient(120deg, #f5f8f1, #fff); }
+.data-start-here h2 { margin: 7px 0; font-size: 19px; }
+.data-start-here p { max-width: 690px; margin: 0; color: var(--muted, #707a75); line-height: 1.6; }
+.m-review-update { margin: 16px 0 22px; padding: 20px; background: linear-gradient(130deg, #f4f7f1, #fff); }
+.m-review-update h2 { margin: 8px 0; font-size: 18px; }
+.m-review-update p { color: #59645e; line-height: 1.55; }
+.m-priority .m-priority-reason { padding: 12px 14px; border-radius: 12px; background: rgba(245, 248, 241, 0.9); color: #536258; font-size: 13px; line-height: 1.55; }
+.m-priority-reason strong { color: #34443c; }
+@media (max-width: 700px) {
+  .data-start-here { align-items: stretch; flex-direction: column; gap: 16px; padding: 20px; }
+  .data-start-here .row { align-items: stretch; flex-direction: column; }
 }

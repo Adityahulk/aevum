@@ -22,7 +22,7 @@ import {
   Watch,
   X,
 } from "lucide-react";
-import { api, date, shortDate, RecordData } from "./api";
+import { api, date, shortDate, RecordData, trackProductEvent } from "./api";
 import { Badge, Button, Modal } from "./components";
 import { useApp } from "./context";
 import { domainIcons } from "./config";
@@ -326,6 +326,9 @@ export function MobileToday() {
   const nextPlan = state.recommendations.find(
     (r: RecordData) => r.eligible && !r.already_active,
   );
+  const priorityPlan = priority
+    ? suggestionFor(priority.id, state.recommendations)
+    : null;
   const wearableDate = latest(
     state.observations.filter((o: RecordData) => isWearable(o.source)),
   );
@@ -340,6 +343,9 @@ export function MobileToday() {
   );
   const unmeasured = t.domains.filter((d: RecordData) => !d.coverage);
   const [head, tail] = priority ? headline(priority) : ["", ""];
+  useEffect(() => {
+    if (t.observation_count > 0) void trackProductEvent("insight_viewed");
+  }, [t.id, t.observation_count]);
   return (
     <div className="m-today">
       <div className="m-heading">
@@ -369,6 +375,8 @@ export function MobileToday() {
           Your sources <ChevronRight size={14} />
         </button>
       </div>
+
+      <PersonalReviewUpdate />
 
       {pending && (
         <section className="m-card m-next-step">
@@ -424,7 +432,13 @@ export function MobileToday() {
           <h2>
             {head} <em>{tail}</em>
           </h2>
+          {signal && <span className="m-label">Observed signal</span>}
           <p>{signal ? signalSentence(signal) : priority.subtitle}</p>
+          {priorityPlan?.personal_reason && (
+            <p className="m-priority-reason">
+              <strong>Why this matters:</strong> {priorityPlan.personal_reason}
+            </p>
+          )}
           <AttentionStatus d={priority} />
           {signal && <BaselineChart signal={signal} />}
           {pathways.length > 0 && (
@@ -571,17 +585,27 @@ export function MobileToday() {
             </button>
           </div>
           <section className="m-card">
-            <h3 className="m-card-title">Make your next step measurable</h3>
+            <span className="m-eyebrow">BEST-FIT NEXT STEP</span>
+            <h3 className="m-card-title">
+              {priorityPlan?.name || "Make your next step measurable"}
+            </h3>
             <p className="m-body">
-              Choose a practical change and a starting measurement. Review your
-              progress after the planned follow-up.
+              {priorityPlan?.personal_reason ||
+                "Choose a practical change and a starting measurement. Review your progress after the planned follow-up."}
             </p>
             <Button
               variant="secondary"
               className="m-block"
-              onClick={() => go("interventions")}
+              onClick={() =>
+                go(
+                  priorityPlan
+                    ? "interventions/plan/" + priorityPlan.id
+                    : "interventions",
+                )
+              }
             >
-              Explore your options <ArrowRight size={18} />
+              {priorityPlan ? "Review this next step" : "Explore your options"}{" "}
+              <ArrowRight size={18} />
             </Button>
           </section>
         </>
@@ -631,6 +655,40 @@ export function MobileToday() {
       </button>
       {checkIn && <CheckInSheet e={checkIn} onClose={() => setCheckIn(null)} />}
     </div>
+  );
+}
+
+export function PersonalReviewUpdate() {
+  const { state, run, go } = useApp();
+  const update = [...(state?.notifications || [])]
+    .reverse()
+    .find(
+      (item: RecordData) =>
+        !item.read &&
+        item.type === "TwinUpdated" &&
+        Number(item.twin_version || 0) > 1 &&
+        !/first biological twin|your twin begins/i.test(item.title || ""),
+    );
+  if (!update) return null;
+  return (
+    <section className="card m-card m-review-update">
+      <span className="m-eyebrow">A MEANINGFUL UPDATE</span>
+      <h2>{update.title}</h2>
+      <p>
+        Your Twin has changed. Review the current measurements and what they
+        support.
+      </p>
+      <Button
+        variant="secondary"
+        onClick={async () => {
+          void trackProductEvent("personal_review_opened");
+          await run(() => api("/notifications/read", { method: "POST" }));
+          go("twin");
+        }}
+      >
+        Review your Twin <ArrowRight size={17} />
+      </Button>
+    </section>
   );
 }
 
@@ -809,7 +867,7 @@ export function PathwayStory({ d, twin }: { d: RecordData; twin: RecordData }) {
             eyebrow="What it suggests"
             chip={`${d.confidence} confidence`}
             tone={d.phenotype ? "purple" : "green"}
-            title={d.phenotype || "No concerning pattern established"}
+            title={d.phenotype || "No pattern inferred from available data"}
           >
             <p>
               {d.state}.{" "}
@@ -1000,7 +1058,10 @@ export function ExperimentProgressCard({
       () => api("/experiments/" + e.id + "/evaluate", { method: "POST" }),
       "Response evaluated; your Twin has been updated",
     );
-    if (result) onEvaluated(result);
+    if (result) {
+      void trackProductEvent("follow_up_completed");
+      onEvaluated(result);
+    }
   };
   return (
     <article className="m-card m-experiment">

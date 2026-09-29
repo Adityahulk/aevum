@@ -13,11 +13,15 @@ import {
   Square,
   Volume2,
 } from "lucide-react";
-import { api, post, RecordData } from "../api";
+import { api, post, RecordData, trackProductEvent } from "../api";
 import { Badge, Button, Empty } from "../components";
 import { useApp } from "../context";
 import { useIsMobile } from "../mobile";
 import { useSpeech, useVoiceInput } from "../voice";
+
+const archivedAsk = (mode: string) =>
+  !["Grounded AI", "Personal AI"].includes(mode);
+
 export function AIPage() {
   const { state, route, me, go, setModal, setError } = useApp();
   const mobile = useIsMobile();
@@ -60,6 +64,7 @@ export function AIPage() {
     setQuestion("");
     try {
       const answer = await post("/ai", { question: q, domain });
+      void trackProductEvent("ask_answer_received");
       setMessages((m) => [...m, answer]);
       requestAnimationFrame(() =>
         conversationEnd.current?.scrollIntoView({
@@ -174,13 +179,21 @@ export function AIPage() {
                       </span>
                     )}
                   </div>
-                  {mobile &&
-                    !["Grounded AI", "Personal AI"].includes(m.mode) && (
-                      <p className="m-legacy-answer">
-                        Saved response from an earlier version · ask again for
-                        an updated answer.
+                  {archivedAsk(m.mode) && (
+                    <section className="ai-archived-answer">
+                      <strong>Earlier answer archived</strong>
+                      <p>
+                        This response was created by an earlier version and is
+                        not shown as current guidance.
                       </p>
-                    )}
+                      <button
+                        className="text-button"
+                        onClick={() => ask(m.question)}
+                      >
+                        Get an updated answer <ArrowUpRight size={14} />
+                      </button>
+                    </section>
+                  )}
                   {!mobile && m.mode_detail && (
                     <p className="muted text-small mode-detail">
                       {m.mode_detail}

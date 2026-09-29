@@ -23,7 +23,7 @@ import {
 } from "../components";
 import { useApp } from "../context";
 import { domainIcons } from "../config";
-import { MobileToday, useIsMobile } from "../mobile";
+import { MobileToday, PersonalReviewUpdate, useIsMobile } from "../mobile";
 import { attentionDomains, canAssess } from "../priorities";
 export function HomePage() {
   const mobile = useIsMobile();
@@ -110,6 +110,7 @@ function DesktopHome() {
           Built on evidence. Open about uncertainty.
         </div>
       </section>
+      <PersonalReviewUpdate />
       <section className="section">
         <SectionTitle
           eyebrow="THE SIGNAL, NOT THE NOISE"

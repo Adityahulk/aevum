@@ -367,8 +367,9 @@ export function Onboarding() {
             <div className="info-note">
               <ShieldCheck size={18} />
               <span>
-                Wearable and genomic processing have separate permissions.
-                Clinician access and research use are off by default.
+                Start with a lab report or lifestyle context. Wearables and
+                DNA are optional. Clinician sharing and research use are off
+                by default.
               </span>
             </div>
             <div className="row between">

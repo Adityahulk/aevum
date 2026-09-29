@@ -86,6 +86,24 @@ class FoundationTest {
   }
 
   @Test
+  void productEventsAcceptOnlyBehaviorNamesAndNoHealthPayload() throws Exception {
+    var c = client();
+    register(c);
+    assertEquals(
+        200,
+        request(c, "POST", "/consent", "{\"scope\":\"health\",\"granted\":true}", true)
+            .statusCode());
+    assertEquals(
+        200,
+        request(c, "POST", "/product-events", "{\"name\":\"ask_answer_received\"}", true)
+            .statusCode());
+    assertEquals(
+        422,
+        request(c, "POST", "/product-events", "{\"name\":\"private health question\"}", true)
+            .statusCode());
+  }
+
+  @Test
   void anotherPersonsSourcesAreNotAccessible() throws Exception {
     String owner = Store.id();
     var source =

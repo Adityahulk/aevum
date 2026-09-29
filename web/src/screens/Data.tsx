@@ -18,7 +18,7 @@ import {
   Link as LinkIcon,
   LoaderCircle,
 } from "lucide-react";
-import { api, post, date, RecordData } from "../api";
+import { api, post, date, RecordData, trackProductEvent } from "../api";
 import { Badge, Button, Empty, SectionTitle, Modal } from "../components";
 import { useApp } from "../context";
 import { isWearable, WearableProvider } from "../wearables";
@@ -187,6 +187,28 @@ export function DataPage() {
           Add data
         </Button>
       </div>
+      {!state.observations.length && (
+        <section className="card data-start-here">
+          <div>
+            <span className="eyebrow">START WITH WHAT YOU HAVE</span>
+            <h2>Your first picture does not need every data source.</h2>
+            <p>
+              Add a lab report or share health and lifestyle context. A wearable
+              can help track recovery over time, and DNA is optional. Aevum will
+              show what your current information can support and what remains
+              unknown.
+            </p>
+          </div>
+          <div className="row wrap">
+            <Button onClick={() => setModal({ type: "upload", kind: "labs" })}>
+              <Plus size={16} /> Add a lab report
+            </Button>
+            <Button variant="secondary" onClick={() => go("data/context")}>
+              Add health & lifestyle context
+            </Button>
+          </div>
+        </section>
+      )}
       <div className="source-cards">
         <button
           className="card source-card"
@@ -1162,7 +1184,10 @@ export function ReviewModal({
               }),
             "Verified data added. Your Twin has been updated.",
           );
-          if (result) onClose();
+          if (result) {
+            void trackProductEvent("import_confirmed");
+            onClose();
+          }
         }}
       >
         {busy ? "Updating your Twin…" : "Confirm & update my Twin"}

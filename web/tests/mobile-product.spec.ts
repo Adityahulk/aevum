@@ -8,6 +8,7 @@ async function sample(page: Page) {
   ).toBeVisible();
   const state = await (await page.request.get("/api/state")).json();
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator(".mobile-tabbar")).toBeVisible();
   return state;
 }
 
@@ -55,6 +56,65 @@ test("mobile sources distinguish imported context, review, permission and live c
   await expect(
     page.getByRole("button", { name: "Wearables", exact: true }),
   ).toHaveClass(/active/);
+});
+
+test("mobile protocol leads with one best fit and keeps alternatives available", async ({
+  page,
+}) => {
+  await sample(page);
+  await page.goto("/#interventions/recommended");
+  await expect(
+    page.locator(".recommendation-list").first().locator(".recommendation"),
+  ).toHaveCount(1);
+  await expect(
+    page.getByText(/Explore \d+ other options/, { exact: false }),
+  ).toBeVisible();
+  await page.getByText(/Explore \d+ other options/, { exact: false }).click();
+  await expect(
+    page.locator(".m-alternative-options .recommendation"),
+  ).toHaveCount(3);
+});
+
+test("home reviews only meaningful Twin updates after the initial version", async ({
+  page,
+}) => {
+  const state = await sample(page);
+  state.notifications = [
+    { id: "initial", type: "TwinUpdated", twin_version: 1, title: "Twin created", read: false },
+  ];
+  await page.route("**/api/state", (route) => route.fulfill({ json: state }));
+  await page.goto("/#home");
+  await page.reload();
+  await expect(page.getByText("A MEANINGFUL UPDATE")).toHaveCount(0);
+  state.notifications.push({
+    id: "changed",
+    type: "TwinUpdated",
+    twin_version: 2,
+    title: "New measurements added",
+    read: false,
+  });
+  await page.reload();
+  await expect(page.getByText("A MEANINGFUL UPDATE")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "New measurements added" })).toBeVisible();
+});
+
+test("product analytics accepts only allowlisted behavior names", async ({
+  page,
+}) => {
+  await sample(page);
+  let eventBody: unknown;
+  await page.route("**/api/product-events", async (route) => {
+    eventBody = route.request().postDataJSON();
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.evaluate(() =>
+    fetch("/api/product-events", {
+      method: "POST",
+      headers: { "X-Aevum-Request": "1", "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "ask_answer_received" }),
+    }),
+  );
+  expect(eventBody).toEqual({ name: "ask_answer_received" });
 });
 
 test("normal results remain scoped and supporting information stays visible", async ({
@@ -136,7 +196,7 @@ test("missing follow-up leads to collection and complete follow-up leads to revi
   ).toBeVisible();
 });
 
-test("mobile Ask leads with the answer and preserves evidence and legacy history", async ({
+test("mobile Ask leads with current answers and archives outdated history", async ({
   page,
 }) => {
   await sample(page);
@@ -172,10 +232,16 @@ test("mobile Ask leads with the answer and preserves evidence and legacy history
   );
   await page.goto("/#ai");
   await expect(
-    page.getByText("Saved response from an earlier version", { exact: false }),
+    page.getByText("Earlier answer archived", { exact: true }),
   ).toBeVisible();
   await expect(
+    page.getByText("An earlier saved answer"),
+  ).not.toBeVisible();
+  await expect(
     page.getByText("Start with the meal changes we discussed."),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Get an updated answer" }),
   ).toBeVisible();
   await expect(
     page.getByText("Your recorded preference informs these options."),
