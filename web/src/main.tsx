@@ -1,3 +1,4 @@
+import { AdminPage } from "./Clinician";
 import React, { useState, useEffect } from "react";
 import {
   ArrowRight,
@@ -113,6 +114,7 @@ function App() {
   };
   const value = {
     me,
+    setMe,
     state,
     catalog,
     go,
@@ -137,7 +139,7 @@ function App() {
         <AuthScreen onSuccess={refresh} />
       </Ctx.Provider>
     );
-  if (!me.profile.onboarded)
+  if (!me.profile.onboarded && !(me.is_admin && route === "admin"))
     return (
       <Ctx.Provider value={value}>
         <Onboarding />
@@ -178,6 +180,11 @@ function App() {
             ))}
           </nav>
           <div className="sidebar-bottom">
+            {me.is_admin && (
+              <button className="nav-item" onClick={() => go("admin")}>
+                Clinician requests
+              </button>
+            )}
             <div className="twin-status">
               <span className="status-dot" />
               <div>
@@ -231,10 +238,12 @@ function App() {
               <span className="breadcrumb">Your workspace</span>
               <ChevronRight size={13} className="breadcrumb-separator" />
               <span className="breadcrumb-current">
-                {page === "you"
-                  ? "You"
-                  : navs.find((n) => n[0] === page)?.[1] ||
-                    "Settings & privacy"}
+                {page === "admin"
+                  ? "Clinician requests"
+                  : page === "you"
+                    ? "You"
+                    : navs.find((n) => n[0] === page)?.[1] ||
+                      "Settings & privacy"}
               </span>
             </div>
             <div className="row topbar-actions">
@@ -274,7 +283,7 @@ function App() {
                 </button>
               </div>
             )}
-            {!me.consents.health && page !== "settings" ? (
+            {!me.consents.health && page !== "settings" && page !== "admin" ? (
               <Empty
                 title="Your data, your decision"
                 action={
@@ -285,11 +294,13 @@ function App() {
               >
                 Enable health-data processing to build and explore your Twin.
               </Empty>
-            ) : !state && page !== "settings" ? (
+            ) : !state && page !== "settings" && page !== "admin" ? (
               <Loading />
             ) : (
               <>
-                {page === "home" ? (
+                {page === "admin" ? (
+                  <AdminPage />
+                ) : page === "home" ? (
                   <HomePage />
                 ) : page === "twin" ? (
                   <TwinPage />

@@ -80,6 +80,61 @@ public class Api {
 
 @Component
 class Auth {
+  @org.springframework.beans.factory.annotation.Value("${AEVUM_ADMIN_EMAIL:}")
+  String adminEmail;
+
+  @org.springframework.beans.factory.annotation.Value("${AEVUM_ADMIN_PASSWORD:}")
+  String adminPassword;
+
+  boolean validAdminConfiguration() {
+    return adminEmail != null && adminPassword != null
+        && adminEmail.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
+        && adminPassword.length() >= 12 && adminPassword.length() <= 72;
+  }
+
+  boolean isAdmin(String person) {
+    if (!validAdminConfiguration()) return false;
+    return !store.db.query("SELECT id FROM accounts WHERE person_id=? AND lower(email)=?",
+        (rs, n) -> rs.getString(1), person, adminEmail.trim().toLowerCase(Locale.ROOT)).isEmpty();
+  }
+
+  boolean matchesAdmin(String email, String password) {
+    if (!validAdminConfiguration()) return false;
+    return MessageDigest.isEqual(adminEmail.trim().toLowerCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8),
+            email.trim().toLowerCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8))
+        && MessageDigest.isEqual(adminPassword.getBytes(StandardCharsets.UTF_8), password.getBytes(StandardCharsets.UTF_8));
+  }
+
+  synchronized String configuredAdminPerson(String email) {
+    String normalized = email.trim().toLowerCase(Locale.ROOT);
+    var rows = store.db.query("SELECT id,person_id FROM accounts WHERE lower(email)=?",
+        (rs, n) -> Map.of("id", rs.getString("id"), "person", rs.getString("person_id")), normalized);
+    String person;
+    String accountId;
+    if (rows.isEmpty()) {
+      person = Store.id();
+      accountId = Store.id();
+      try {
+        store.db.update("INSERT INTO accounts(id,email,password_hash,person_id,created_at) VALUES(?,?,?,?,?)",
+            accountId, normalized, passwords.encode(adminPassword), person, Instant.now().toString());
+      } catch (DuplicateKeyException race) {
+        rows = store.db.query("SELECT id,person_id FROM accounts WHERE lower(email)=?",
+            (rs, n) -> Map.of("id", rs.getString("id"), "person", rs.getString("person_id")), normalized);
+        if (rows.isEmpty()) throw race;
+        accountId = rows.get(0).get("id");
+        person = rows.get(0).get("person");
+      }
+    } else {
+      accountId = rows.get(0).get("id");
+      person = rows.get(0).get("person");
+      store.db.update("UPDATE accounts SET password_hash=? WHERE id=?", passwords.encode(adminPassword), accountId);
+    }
+    if (store.latest(person, "profile").isEmpty()) {
+      store.add(person, "profile", Map.of("name", "Aevum Admin", "goal", "Admin", "onboarded", true, "demo", false));
+    }
+    return person;
+  }
+
   final Store store;
   final BCryptPasswordEncoder passwords = new BCryptPasswordEncoder(12);
 
@@ -228,6 +283,9 @@ class IdentityController {
         || password.length() < 12
         || password.length() > 72)
       throw new Api.Failure(422, "Use a valid email and a password of 12–72 characters.");
+    if (auth.adminEmail != null && !auth.adminEmail.isBlank()
+        && email.equalsIgnoreCase(auth.adminEmail.trim()))
+      throw new Api.Failure(409, "This email is reserved for the Aevum administrator.");
     String p = Store.id();
     try {
       store.db.update(
@@ -261,18 +319,24 @@ class IdentityController {
 
   @PostMapping("/auth/login")
   Map<String, Object> login(@RequestBody Map<String, Object> b, HttpServletResponse response) {
-    var rows =
-        store.db.queryForList(
-            "SELECT person_id,password_hash FROM accounts WHERE email=?",
-            Api.str(b, "email", "").trim().toLowerCase(Locale.ROOT));
-    String hash =
-        rows.isEmpty()
-            ? "$2a$12$4s5OgUB7b/ULyOXUBRkc5.bXEXJuEJueDm/Ygr8kCFmNlqPJHdTqO"
-            : rows.get(0).get("password_hash").toString();
-    boolean valid = auth.passwords.matches(Api.str(b, "password", ""), hash);
-    if (rows.isEmpty() || !valid)
-      throw new Api.Failure(401, "Email or password was not recognized.");
-    String p = rows.get(0).get("person_id").toString();
+    String email = Api.str(b, "email", "").trim().toLowerCase(Locale.ROOT);
+    String password = Api.str(b, "password", "");
+    String p;
+    if (auth.matchesAdmin(email, password)) {
+      p = auth.configuredAdminPerson(email);
+    } else {
+      if (auth.adminEmail != null && email.equalsIgnoreCase(auth.adminEmail.trim()))
+        throw new Api.Failure(401, "Email or password was not recognized.");
+      var rows = store.db.queryForList(
+          "SELECT person_id,password_hash FROM accounts WHERE email=?", email);
+      String hash = rows.isEmpty()
+          ? "$2a$12$4s5OgUB7b/ULyOXUBRkc5.bXEXJuEJueDm/Ygr8kCFmNlqPJHdTqO"
+          : rows.get(0).get("password_hash").toString();
+      boolean valid = auth.passwords.matches(password, hash);
+      if (rows.isEmpty() || !valid)
+        throw new Api.Failure(401, "Email or password was not recognized.");
+      p = rows.get(0).get("person_id").toString();
+    }
     auth.session(p, response);
     store.audit(p, "SignedIn", p);
     return Map.of("profile", store.latest(p, "profile"));
@@ -307,7 +371,8 @@ class IdentityController {
     Map<String, Object> consents = new LinkedHashMap<>();
     for (String scope : List.of("health", "wearable", "genomics", "ai", "clinician", "research"))
       consents.put(scope, auth.consent(p, scope));
-    return Map.of("profile", store.latest(p, "profile"), "consents", consents);
+    return Map.of("profile", store.latest(p, "profile"), "consents", consents,
+        "is_admin", auth.isAdmin(p), "clinician_request", store.latest(p, "clinician_request"));
   }
 
   @PostMapping("/consent")
@@ -419,7 +484,8 @@ class IdentityController {
             "response",
             "twin",
             "audit",
-            "claim")) out.put(kind, store.list(p, kind));
+            "claim",
+            "clinician_request")) out.put(kind, store.list(p, kind));
     return out;
   }
 

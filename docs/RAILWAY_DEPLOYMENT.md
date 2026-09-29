@@ -143,3 +143,21 @@ Provider callbacks terminate on the separate restricted wearable gateway, not on
 - Railway Buckets use virtual-hosted S3 requests. Local Docker Compose sets path-style mode explicitly for MinIO.
 - The local `compose.yaml` remains the complete self-hosted development topology. Railway replaces its database, Redis, and MinIO containers with managed resources.
 - Scaled API replicas require a deliberate session/cache and migration strategy. Use one API replica for the first pilot unless load testing shows a need to scale.
+
+## Clinician call requests (optional admin access)
+
+Home and Twin allow signed-in members to request a call. Requests appear at
+`/#admin`; the team arranges the call and confirms any fee outside Aevum.
+No booking, payment, email delivery or doctor account is created automatically.
+
+Set `AEVUM_ADMIN_EMAIL` and a unique 12–72 character `AEVUM_ADMIN_PASSWORD` on the **api** service in Railway, then redeploy. Use those credentials on the normal Aevum sign-in screen; on the first successful login the app creates the administrator account, and subsequent logins use the configured password. Changing either value in Railway takes effect after redeploy. Keep this a dedicated admin email. The admin inbox is at `/#admin` and also appears in the admin navigation.
+
+The inbox provides the member's email, request date, origin and status. Set the
+status to contacted, scheduled, completed or cancelled as your team handles it.
+Download report produces a standalone HTML report; open it in a browser and
+Print → Save as PDF to share with the clinician. It contains available measurements,
+lifestyle context, genomic findings, the current Twin and experiment/follow-up
+records. Source documents are indexed; original files and Ask conversations are
+not included. The request explicitly authorizes sharing this report for the call.
+Cancelled requests and accounts with health processing disabled cannot be exported.
+Account deletion removes the associated requests along with the user's records.

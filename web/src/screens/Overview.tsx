@@ -1,3 +1,4 @@
+import { ClinicianCard } from "../Clinician";
 import React from "react";
 import {
   Activity,
@@ -241,6 +242,7 @@ function DesktopHome() {
           </div>
         )}
       </section>
+      <ClinicianCard origin="home" />
       <div className="overview-split">
         <section className="card domains-panel">
           <SectionTitle

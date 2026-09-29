@@ -5,7 +5,7 @@ import { Button, SectionTitle, Modal } from "../components";
 import { useApp } from "../context";
 import { goals } from "../config";
 export function SettingsPage() {
-  const { me, state, run, busy, setError, refresh } = useApp();
+  const { me, state, run, busy, setError, refresh, go } = useApp();
   const [tab, setTab] = useState("Your context"),
     [family, setFamily] = useState<RecordData[]>(
       me.profile.family_history || [],
@@ -40,6 +40,11 @@ export function SettingsPage() {
           Sign out
         </Button>
       </div>
+      {me.is_admin && (
+        <Button variant="secondary" onClick={() => go("admin")}>
+          Manage clinician call requests
+        </Button>
+      )}
       <div className="tabs">
         {["Your context", "Goals & preferences", "Privacy & data"].map((t) => (
           <button

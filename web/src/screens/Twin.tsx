@@ -1,3 +1,4 @@
+import { ClinicianCard } from "../Clinician";
 import React, { useState } from "react";
 import {
   Activity,
@@ -174,6 +175,7 @@ export function TwinPage() {
           })}
         </div>
       )}
+      <ClinicianCard origin="twin" />
       <details className="card timeline-section twin-history" open={!mobile}>
         <summary>Assessment history</summary>
         <SectionTitle

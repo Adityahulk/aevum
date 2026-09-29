@@ -1,3 +1,4 @@
+import { ClinicianCard } from "./Clinician";
 import React, { useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import {
@@ -561,6 +562,8 @@ export function MobileToday() {
           </Button>
         </section>
       )}
+
+      <ClinicianCard origin="home" />
 
       {others.length > 0 && (
         <>
